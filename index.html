@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>生達化學製藥 - 上下班接駁專車預約平台</title>
 
   <!-- PWA 設定 -->
@@ -19,27 +19,33 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     * { -webkit-tap-highlight-color: transparent; }
+    /* 手機安全區域支援 */
+    body { padding-bottom: constant(safe-area-inset-bottom); padding-bottom: env(safe-area-inset-bottom); }
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   </style>
 </head>
-<body class="bg-slate-100 text-slate-800 min-h-screen select-none">
+<body class="bg-slate-100 text-slate-800 min-h-screen select-none antialiased md:pb-6 pb-20">
   <div id="app" class="min-h-screen flex flex-col">
     
-    <!-- 頂部導航列 -->
+    <!-- ============================================== -->
+    <!-- 頂部導航列：PC/筆電顯示完整選單，手機顯示精簡品牌列 -->
+    <!-- ============================================== -->
     <header class="bg-emerald-800 text-white px-4 md:px-6 py-3 sticky top-0 z-30 shadow-md flex justify-between items-center">
       <div class="flex items-center space-x-2.5">
-        <div class="w-9 h-9 bg-emerald-600 rounded-lg flex items-center justify-center font-black text-lg tracking-wider shadow">ST</div>
+        <div class="w-9 h-9 bg-emerald-600 rounded-xl flex items-center justify-center font-black text-lg tracking-wider shadow">ST</div>
         <div>
           <div class="flex items-center space-x-1.5">
             <span class="font-bold text-base md:text-lg tracking-wide">生達化學製藥</span>
-            <span class="bg-emerald-600/80 text-emerald-100 text-[10px] px-2 py-0.5 rounded-full">接駁專車</span>
+            <span class="bg-emerald-600/80 text-emerald-100 text-[10px] px-2 py-0.5 rounded-full font-medium">接駁專車</span>
           </div>
-          <p class="text-[11px] text-emerald-200">上下班交通接送預約平台</p>
+          <p class="text-[11px] text-emerald-200 hidden md:block">上下班交通接送預約平台</p>
         </div>
       </div>
       
-      <!-- 功能導航分頁 -->
-      <div class="flex items-center space-x-2">
-        <div class="flex bg-emerald-900/60 p-1 rounded-lg text-xs md:text-sm">
+      <!-- [PC/筆電專屬] 頂部功能選單列（手機隱藏） -->
+      <div class="hidden md:flex items-center space-x-3">
+        <div class="flex bg-emerald-900/60 p-1 rounded-lg text-sm">
           <button @click="switchTab('booking')" :class="{'bg-emerald-600 text-white font-bold shadow': currentTab === 'booking', 'text-emerald-200 hover:text-white': currentTab !== 'booking'}" class="px-3 py-1.5 rounded-md transition flex items-center space-x-1">
             <i class="fa-solid fa-mobile-screen"></i>
             <span>預約</span>
@@ -60,35 +66,44 @@
           </button>
         </div>
 
-        <!-- 登入資訊與登出按鈕 -->
-        <div v-if="currentUser" class="flex items-center space-x-1.5 bg-emerald-950/40 px-2 py-1 rounded-lg">
-          <div class="text-right hidden sm:block">
-            <div class="text-[11px] font-bold text-white">{{ currentUser.real_name }}</div>
-            <div class="text-[9px] text-emerald-300">{{ currentUser.role === 'admin' ? '管理員' : '駕駛' }}</div>
+        <div v-if="currentUser" class="flex items-center space-x-2 bg-emerald-950/40 px-2.5 py-1 rounded-lg">
+          <div class="text-right text-xs">
+            <div class="font-bold text-white">{{ currentUser.real_name }}</div>
+            <div class="text-[10px] text-emerald-300">{{ currentUser.role === 'admin' ? '管理員' : '駕駛' }}</div>
           </div>
-          <button @click="handleLogout" class="text-xs text-rose-200 hover:text-white bg-rose-900/60 hover:bg-rose-700 px-2 py-1.5 rounded-md transition" title="登出管理帳號">
+          <button @click="handleLogout" class="text-xs text-rose-200 hover:text-white bg-rose-900/60 hover:bg-rose-700 px-2 py-1.5 rounded-md transition" title="登出">
             <i class="fa-solid fa-arrow-right-from-bracket"></i>
           </button>
         </div>
       </div>
+
+      <!-- [手機專屬] 僅顯示極簡使用者名稱與登出鈕（PC隱藏） -->
+      <div v-if="currentUser" class="flex md:hidden items-center space-x-1.5 bg-emerald-900/80 px-2 py-1 rounded-lg text-xs">
+        <span class="text-emerald-200 text-[11px] font-bold">{{ currentUser.real_name }}</span>
+        <button @click="handleLogout" class="text-rose-300 hover:text-white ml-1 p-0.5" title="登出">
+          <i class="fa-solid fa-arrow-right-from-bracket"></i>
+        </button>
+      </div>
     </header>
 
     <!-- 訊息提示橫條 -->
-    <div v-if="alertMsg" :class="alertType === 'error' ? 'bg-rose-600' : 'bg-emerald-600'" class="text-white text-xs md:text-sm px-4 md:px-6 py-2.5 flex justify-between items-center transition shadow-inner">
+    <div v-if="alertMsg" :class="alertType === 'error' ? 'bg-rose-600' : 'bg-emerald-600'" 
+         class="text-white text-xs md:text-sm px-4 md:px-6 py-2.5 flex justify-between items-center transition shadow sticky top-[52px] md:top-[60px] z-40">
       <div class="flex items-center space-x-2">
-        <i :class="alertType === 'error' ? 'fa-solid fa-triangle-exclamation' : 'fa-solid fa-circle-check'"></i>
-        <span>{{ alertMsg }}</span>
+        <i :class="alertType === 'error' ? 'fa-solid fa-circle-exclamation' : 'fa-solid fa-circle-check'"></i>
+        <span class="font-medium">{{ alertMsg }}</span>
       </div>
-      <button @click="alertMsg = ''" class="text-white/80 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      <button @click="alertMsg = ''" class="text-white/80 p-1"><i class="fa-solid fa-xmark"></i></button>
     </div>
 
     <!-- ============================================== -->
-    <!-- 頁面 1：乘車預約介面 (開放員工與訪客預約) -->
+    <!-- 頁面 1：乘車預約介面 (PC寬版 / 手機卡片自動調整) -->
     <!-- ============================================== -->
-    <main v-if="currentTab === 'booking'" class="max-w-4xl w-full mx-auto p-3.5 md:p-6 space-y-4 md:space-y-6">
+    <main v-if="currentTab === 'booking'" class="w-full mx-auto p-3.5 md:p-6 md:max-w-4xl max-w-md space-y-4 md:space-y-6">
       
       <!-- 乘車人卡片 -->
       <section class="bg-white border border-slate-200 rounded-2xl p-4 md:p-5 shadow-sm space-y-3">
+        <!-- 已記住身分狀態 -->
         <div v-if="currentEmp && isRemembered" class="space-y-3">
           <div class="flex justify-between items-center">
             <div class="flex items-center space-x-3">
@@ -103,24 +118,24 @@
                 </div>
                 <div class="flex items-center space-x-2 mt-0.5">
                   <span class="text-xs text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">{{ currentEmp.dept_name }}</span>
-                  <span class="text-[11px] text-slate-400"><i class="fa-solid fa-mobile-screen mr-0.5"></i>已自動記住身分</span>
+                  <span class="text-[11px] text-slate-400 hidden sm:inline"><i class="fa-solid fa-mobile-screen mr-0.5"></i>已自動記住身分</span>
                 </div>
               </div>
             </div>
 
-            <div class="flex flex-col items-end space-y-1">
-              <button @click="openMyBookingsModal" class="text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-2.5 py-1 rounded-lg font-bold border border-emerald-200 transition flex items-center space-x-1">
+            <div class="flex items-center space-x-1.5">
+              <button @click="openMyBookingsModal" class="text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-2.5 py-1.5 rounded-xl font-bold border border-emerald-200 transition flex items-center space-x-1">
                 <i class="fa-solid fa-clock-rotate-left"></i>
                 <span>我的預約</span>
               </button>
-              <button @click="resetRememberedEmp" class="text-[11px] text-slate-400 hover:text-rose-600 transition flex items-center space-x-1">
-                <i class="fa-solid fa-arrow-right-arrow-left"></i>
-                <span>更換乘車人</span>
+              <button @click="resetRememberedEmp" class="text-slate-400 hover:text-rose-600 p-1.5 text-xs transition" title="更換乘車人">
+                <i class="fa-solid fa-pen-to-square"></i>
               </button>
             </div>
           </div>
         </div>
 
+        <!-- 填寫身分狀態 (三個輸入框) -->
         <div v-else class="space-y-3">
           <div class="flex justify-between items-center">
             <div class="flex items-center space-x-2 text-slate-700 font-bold text-sm md:text-base">
@@ -164,16 +179,28 @@
         </div>
       </section>
 
-      <!-- 日期選取 -->
+      <!-- 日期選取卡片 (手機支援左右箭頭翻頁，PC支援直接輸入) -->
       <section class="bg-white border border-slate-200 rounded-2xl p-4 md:p-5 shadow-sm space-y-3.5">
         <div class="flex flex-wrap justify-between items-center gap-2.5">
-          <div class="flex items-center space-x-2">
-            <label class="text-xs md:text-sm font-bold text-slate-700">搭乘日期</label>
-            <input type="date" v-model="rideDate" @change="onDateChanged" class="border border-slate-300 rounded-xl px-2.5 py-1 text-xs md:text-sm font-semibold outline-none focus:ring-2 focus:ring-emerald-500">
-            <span class="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-lg font-medium">{{ getWeekday(rideDate) }}</span>
+          <!-- 手機左右箭頭切換 + 日期 -->
+          <div class="flex items-center space-x-2 w-full md:w-auto justify-between md:justify-start">
+            <button @click="changeDateOffsetBy(-1)" class="md:hidden w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center">
+              <i class="fa-solid fa-chevron-left text-xs"></i>
+            </button>
+
+            <div class="flex items-center space-x-2">
+              <label class="text-xs md:text-sm font-bold text-slate-700 hidden md:inline">搭乘日期</label>
+              <input type="date" v-model="rideDate" @change="onDateChanged" class="border border-slate-300 rounded-xl px-2.5 py-1 text-xs md:text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500 text-center md:text-left">
+              <span class="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-lg font-medium">{{ getWeekday(rideDate) }}</span>
+            </div>
+
+            <button @click="changeDateOffsetBy(1)" class="md:hidden w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center">
+              <i class="fa-solid fa-chevron-right text-xs"></i>
+            </button>
           </div>
 
-          <div class="flex space-x-1 bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+          <!-- 快速按鈕 -->
+          <div class="grid grid-cols-3 md:flex space-x-1 bg-slate-100 p-1 rounded-xl text-xs font-semibold w-full md:w-auto text-center">
             <button @click="setDateOffset(0)" :class="dateOffset === 0 ? 'bg-slate-800 text-white' : 'text-slate-600'" class="px-2.5 py-1 rounded-lg transition">今天</button>
             <button @click="setDateOffset(1)" :class="dateOffset === 1 ? 'bg-slate-800 text-white' : 'text-slate-600'" class="px-2.5 py-1 rounded-lg transition">明天</button>
             <button @click="setDateOffset(2)" :class="dateOffset === 2 ? 'bg-slate-800 text-white' : 'text-slate-600'" class="px-2.5 py-1 rounded-lg transition">後天</button>
@@ -186,7 +213,7 @@
         </div>
       </section>
 
-      <!-- 上班車次清單 -->
+      <!-- 上班車次清單 (PC雙欄網格 / 手機單欄大按鈕) -->
       <section class="bg-white border border-slate-200 rounded-2xl p-4 md:p-5 shadow-sm space-y-3">
         <div class="flex justify-between items-center border-b pb-2.5">
           <div class="flex items-center space-x-2">
@@ -195,22 +222,22 @@
           </div>
         </div>
 
-        <div v-if="morningSlots.length === 0" class="text-xs text-slate-400 py-3 text-center">該日未開放上班班次</div>
+        <div v-if="morningSlots.length === 0" class="text-xs text-slate-400 py-4 text-center">該日未開放上班班次</div>
         <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
-          <div v-for="slot in morningSlots" :key="slot.time_slot" class="border rounded-xl p-3 flex justify-between items-center transition" :class="getSlotCardClass(slot)">
-            <div>
+          <div v-for="slot in morningSlots" :key="slot.time_slot" class="border rounded-xl p-3.5 flex justify-between items-center transition" :class="getSlotCardClass(slot)">
+            <div class="space-y-1">
               <div class="flex items-center space-x-2">
-                <span class="font-black text-lg text-slate-800">{{ slot.time_slot }}</span>
+                <span class="font-black text-xl md:text-lg text-slate-800 font-mono">{{ slot.time_slot }}</span>
                 <span class="text-[10px] px-1.5 py-0.5 rounded font-bold bg-blue-50 text-blue-700 border border-blue-200">上班</span>
                 <span class="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
                   {{ slot.cutoff_day === 'PREV' ? '前一日' : '當日' }} {{ formatTimeStr(slot.cutoff_time) }} 截止
                 </span>
               </div>
-              <div class="text-xs text-slate-500 mt-1">
+              <div class="text-xs text-slate-500">
                 剩餘名額：<strong :class="slot.remaining_seats > 0 ? 'text-emerald-600 font-bold' : 'text-rose-500'">{{ slot.remaining_seats }}</strong> / {{ slot.max_capacity }}
               </div>
             </div>
-            <button @click="handleBooking(slot)" :disabled="!canBook(slot)" class="px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm" :class="canBook(slot) ? 'bg-emerald-600 text-white active:scale-95' : 'bg-slate-100 text-slate-400 cursor-not-allowed'">
+            <button @click="handleBooking(slot)" :disabled="!canBook(slot)" class="px-4 py-2.5 md:py-2 rounded-xl text-xs font-bold transition shadow-sm whitespace-nowrap active:scale-95" :class="canBook(slot) ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400 cursor-not-allowed'">
               {{ getBtnText(slot) }}
             </button>
           </div>
@@ -226,22 +253,22 @@
           </div>
         </div>
 
-        <div v-if="eveningSlots.length === 0" class="text-xs text-slate-400 py-3 text-center">該日未開放下班班次</div>
+        <div v-if="eveningSlots.length === 0" class="text-xs text-slate-400 py-4 text-center">該日未開放下班班次</div>
         <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
-          <div v-for="slot in eveningSlots" :key="slot.time_slot" class="border rounded-xl p-3 flex justify-between items-center transition" :class="getSlotCardClass(slot)">
-            <div>
+          <div v-for="slot in eveningSlots" :key="slot.time_slot" class="border rounded-xl p-3.5 flex justify-between items-center transition" :class="getSlotCardClass(slot)">
+            <div class="space-y-1">
               <div class="flex items-center space-x-2">
-                <span class="font-black text-lg text-slate-800">{{ slot.time_slot }}</span>
+                <span class="font-black text-xl md:text-lg text-slate-800 font-mono">{{ slot.time_slot }}</span>
                 <span class="text-[10px] px-1.5 py-0.5 rounded font-bold bg-amber-50 text-amber-700 border border-amber-200">下班</span>
                 <span class="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
                   {{ slot.cutoff_day === 'PREV' ? '前一日' : '當日' }} {{ formatTimeStr(slot.cutoff_time) }} 截止
                 </span>
               </div>
-              <div class="text-xs text-slate-500 mt-1">
+              <div class="text-xs text-slate-500">
                 剩餘名額：<strong :class="slot.remaining_seats > 0 ? 'text-emerald-600 font-bold' : 'text-rose-500'">{{ slot.remaining_seats }}</strong> / {{ slot.max_capacity }}
               </div>
             </div>
-            <button @click="handleBooking(slot)" :disabled="!canBook(slot)" class="px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm" :class="canBook(slot) ? 'bg-emerald-600 text-white active:scale-95' : 'bg-slate-100 text-slate-400 cursor-not-allowed'">
+            <button @click="handleBooking(slot)" :disabled="!canBook(slot)" class="px-4 py-2.5 md:py-2 rounded-xl text-xs font-bold transition shadow-sm whitespace-nowrap active:scale-95" :class="canBook(slot) ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400 cursor-not-allowed'">
               {{ getBtnText(slot) }}
             </button>
           </div>
@@ -249,31 +276,31 @@
       </section>
 
       <!-- 彈窗：我的預約清單 -->
-      <div v-if="showMyBookingsModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-        <div class="bg-white w-full max-w-sm rounded-2xl p-5 space-y-4 shadow-xl">
+      <div v-if="showMyBookingsModal" class="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="bg-white w-full max-w-sm rounded-t-3xl sm:rounded-2xl p-5 space-y-4 shadow-2xl">
           <div class="flex justify-between items-center border-b pb-3">
             <h3 class="font-bold text-slate-800 text-base flex items-center space-x-2">
               <i class="fa-solid fa-calendar-check text-emerald-600"></i>
               <span>我的預約清單</span>
             </h3>
-            <button @click="showMyBookingsModal = false" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark text-lg"></i></button>
+            <button @click="showMyBookingsModal = false" class="text-slate-400 hover:text-slate-700 p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
           </div>
 
           <div v-if="myBookings.length === 0" class="text-center py-6 text-slate-400 text-xs">
             目前查無預約記錄
           </div>
 
-          <div v-else class="space-y-2 max-h-64 overflow-y-auto pr-1">
+          <div v-else class="space-y-2 max-h-64 overflow-y-auto pr-1 hide-scrollbar">
             <div v-for="b in myBookings" :key="b.booking_id" class="border border-slate-200 rounded-xl p-3 flex justify-between items-center bg-slate-50 hover:bg-white transition">
               <div>
-                <div class="flex items-center space-x-1.5">
-                  <span class="font-bold text-emerald-800 text-sm">{{ b.ride_date }}</span>
-                  <span class="text-[11px] text-slate-500 font-medium">({{ getWeekday(b.ride_date) }})</span>
+                <div class="flex items-center space-x-1.5 font-bold text-emerald-800 text-xs">
+                  <span>{{ b.ride_date }}</span>
+                  <span class="text-slate-500 font-normal">({{ getWeekday(b.ride_date) }})</span>
                 </div>
                 <div class="flex items-center space-x-2 mt-1">
-                  <span class="font-black text-base text-slate-800">{{ b.time_slot }}</span>
+                  <span class="font-black text-base text-slate-800 font-mono">{{ b.time_slot }}</span>
                   <span class="text-[10px] px-1.5 py-0.5 rounded font-bold" :class="parseInt(b.time_slot) < 12 ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'">
-                    {{ parseInt(b.time_slot) < 12 ? '上班接駁' : '下班接駁' }}
+                    {{ parseInt(b.time_slot) < 12 ? '上班' : '下班' }}
                   </span>
                 </div>
               </div>
@@ -283,7 +310,7 @@
             </div>
           </div>
 
-          <button @click="showMyBookingsModal = false" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 rounded-xl text-xs font-bold transition">
+          <button @click="showMyBookingsModal = false" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-xl text-xs font-bold transition">
             關閉
           </button>
         </div>
@@ -292,19 +319,19 @@
     </main>
 
     <!-- ============================================== -->
-    <!-- 頁面 2：司機 / 管理名冊 (需登入駕駛或管理員) -->
+    <!-- 頁面 2：司機 / 管理名冊 (PC大表格 / 手機卡片清單) -->
     <!-- ============================================== -->
-    <main v-if="currentTab === 'admin'" class="max-w-4xl w-full mx-auto p-4 md:p-6 space-y-5">
-      <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-wrap justify-between items-center gap-3">
+    <main v-if="currentTab === 'admin'" class="w-full mx-auto p-3.5 md:p-6 md:max-w-4xl max-w-md space-y-4 md:space-y-5">
+      <div class="bg-white border border-slate-200 rounded-2xl p-4 md:p-5 shadow-sm flex flex-wrap justify-between items-center gap-3">
         <div>
           <h2 class="font-bold text-slate-800 text-base">司機乘車點名清冊</h2>
           <p class="text-xs text-slate-400 mt-0.5">搭乘日期：{{ rideDate }} ({{ getWeekday(rideDate) }}) • 當日搭乘同仁：{{ passengers.length }} 人</p>
         </div>
-        <div class="flex items-center space-x-2">
-          <input type="date" v-model="rideDate" @change="loadPassengers" class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs outline-none font-semibold">
+        <div class="flex items-center space-x-2 w-full md:w-auto">
+          <input type="date" v-model="rideDate" @change="loadPassengers" class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs outline-none font-semibold flex-1 md:flex-none">
           <button @click="window.print()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1">
             <i class="fa-solid fa-print"></i>
-            <span>列印名冊</span>
+            <span class="hidden sm:inline">列印名冊</span>
           </button>
         </div>
       </div>
@@ -318,7 +345,7 @@
         <div v-for="(list, slot) in groupedPassengers" :key="slot" class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
           <div class="bg-slate-50 px-4 py-3 border-b flex justify-between items-center">
             <div class="flex items-center space-x-2">
-              <span class="font-black text-base text-slate-800">{{ slot }}</span>
+              <span class="font-black text-base text-slate-800 font-mono">{{ slot }}</span>
               <span class="text-xs px-2 py-0.5 rounded font-bold" :class="parseInt(slot) < 12 ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'">
                 {{ parseInt(slot) < 12 ? '上班接送' : '下班接送' }}
               </span>
@@ -354,26 +381,26 @@
     </main>
 
     <!-- ============================================== -->
-    <!-- 頁面 3：時段維護管理 (需管理員登入) -->
+    <!-- 頁面 3：時段與帳號維護管理 (PC大器排版 / 手機緊湊好點) -->
     <!-- ============================================== -->
-    <main v-if="currentTab === 'slot_mgmt'" class="max-w-4xl w-full mx-auto p-4 md:p-6 space-y-6">
+    <main v-if="currentTab === 'slot_mgmt'" class="w-full mx-auto p-3.5 md:p-6 md:max-w-4xl max-w-md space-y-4 md:space-y-6">
       
       <!-- 區塊 1：標準固定時段設定 (點選帶入) -->
-      <section class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+      <section class="bg-white border border-slate-200 rounded-2xl p-4 md:p-5 shadow-sm space-y-4">
         <div class="flex justify-between items-center border-b pb-3">
           <div>
-            <h2 class="font-bold text-slate-800 text-base flex items-center space-x-2">
+            <h2 class="font-bold text-slate-800 text-sm md:text-base flex items-center space-x-2">
               <i class="fa-solid fa-clock-rotate-left text-emerald-600"></i>
               <span>標準固定時段設定（平日預設產生）</span>
             </h2>
-            <p class="text-xs text-slate-400 mt-0.5">系統未來每日自動依此清單開放可搭乘班次。可直接點擊下方卡片帶入資料進行修改。</p>
+            <p class="text-xs text-slate-400 mt-0.5 hidden sm:block">系統未來每日自動依此清單開放可搭乘班次。可直接點擊下方卡片帶入資料進行修改。</p>
           </div>
           <button @click="loadDefaultSlots" class="text-xs text-slate-400 hover:text-emerald-600">
             <i class="fa-solid fa-rotate-right mr-1"></i>重新整理
           </button>
         </div>
 
-        <div class="bg-slate-50 border rounded-xl p-4 space-y-3 transition" :class="editingSlotTime ? 'border-emerald-400 ring-2 ring-emerald-100 bg-emerald-50/20' : 'border-slate-200'">
+        <div class="bg-slate-50 border rounded-xl p-3 md:p-4 space-y-3 transition" :class="editingSlotTime ? 'border-emerald-400 ring-2 ring-emerald-100 bg-emerald-50/20' : 'border-slate-200'">
           <div class="flex justify-between items-center">
             <span class="text-xs font-bold text-slate-700 flex items-center space-x-1.5">
               <i :class="editingSlotTime ? 'fa-solid fa-pen-to-square text-emerald-600' : 'fa-solid fa-plus text-slate-500'"></i>
@@ -385,57 +412,55 @@
             </button>
           </div>
 
-          <div class="flex flex-wrap items-center gap-3">
-            <div class="flex items-center space-x-1.5">
+          <div class="grid grid-cols-2 md:flex md:flex-wrap items-center gap-2.5 md:gap-3">
+            <div class="flex flex-col md:flex-row md:items-center space-y-1 md:space-y-0 md:space-x-1.5">
               <label class="text-xs font-bold text-slate-600">發車時間：</label>
-              <input type="text" v-model="newSlotTime" @input="autoSuggestCutoff" placeholder="如 06:45 或 19:00" class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs w-32 outline-none focus:ring-2 focus:ring-emerald-500 bg-white font-mono font-bold">
+              <input type="text" v-model="newSlotTime" @input="autoSuggestCutoff" placeholder="如 06:45" class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs w-full md:w-32 outline-none focus:ring-2 focus:ring-emerald-500 bg-white font-mono font-bold">
             </div>
 
-            <div class="flex items-center space-x-1.5">
+            <div class="flex flex-col md:flex-row md:items-center space-y-1 md:space-y-0 md:space-x-1.5">
               <label class="text-xs font-bold text-slate-600">上限人數：</label>
-              <input type="number" v-model="newSlotCapacity" min="1" max="50" class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs w-16 outline-none focus:ring-2 focus:ring-emerald-500 bg-white font-bold">
+              <input type="number" v-model="newSlotCapacity" min="1" max="50" class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs w-full md:w-16 outline-none focus:ring-2 focus:ring-emerald-500 bg-white font-bold">
             </div>
 
-            <div class="flex items-center space-x-1.5">
+            <div class="flex flex-col md:flex-row md:items-center space-y-1 md:space-y-0 md:space-x-1.5">
               <label class="text-xs font-bold text-slate-600">截止基準：</label>
-              <select v-model="newSlotCutoffDay" class="border border-slate-300 rounded-lg px-2 py-1.5 text-xs outline-none bg-white font-medium">
+              <select v-model="newSlotCutoffDay" class="border border-slate-300 rounded-lg px-2 py-1.5 text-xs outline-none bg-white font-medium w-full md:w-auto">
                 <option value="PREV">搭乘前一日</option>
                 <option value="SAME">搭乘當日</option>
               </select>
             </div>
 
-            <div class="flex items-center space-x-1.5">
+            <div class="flex flex-col md:flex-row md:items-center space-y-1 md:space-y-0 md:space-x-1.5">
               <label class="text-xs font-bold text-slate-600">截止時間：</label>
-              <input type="text" v-model="newSlotCutoffTime" placeholder="如 21:00 或 06:00" class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs w-28 outline-none focus:ring-2 focus:ring-emerald-500 bg-white font-mono font-bold">
+              <input type="text" v-model="newSlotCutoffTime" placeholder="如 21:00" class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs w-full md:w-28 outline-none focus:ring-2 focus:ring-emerald-500 bg-white font-mono font-bold">
             </div>
 
-            <button @click="handleAddDefaultSlot" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-4 py-2 rounded-lg font-bold transition flex items-center space-x-1 shadow-sm active:scale-95">
+            <button @click="handleAddDefaultSlot" class="col-span-2 md:col-span-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-4 py-2 rounded-lg font-bold transition flex items-center justify-center space-x-1 shadow-sm active:scale-95">
               <i :class="editingSlotTime ? 'fa-solid fa-check' : 'fa-solid fa-plus'"></i>
               <span>{{ editingSlotTime ? '儲存修改' : '新增標準時段' }}</span>
             </button>
           </div>
-          <p class="text-[11px] text-slate-400">💡 提示：點擊下方任何一個時段卡片即可直接將資訊載入此處快速編輯！</p>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3">
           <div v-for="s in defaultSlots" :key="s.slot_id" 
                @click="selectSlotToEdit(s)"
                class="border rounded-xl p-3 flex justify-between items-center cursor-pointer transition shadow-sm"
                :class="editingSlotTime === s.time_slot ? 'bg-emerald-50/70 border-emerald-500 ring-2 ring-emerald-200' : 'bg-white border-slate-200 hover:border-emerald-400 hover:bg-slate-50/80'">
             <div class="space-y-0.5">
               <div class="flex items-center space-x-2">
-                <span class="font-black text-base text-slate-800">{{ s.time_slot }}</span>
+                <span class="font-black text-sm md:text-base text-slate-800 font-mono">{{ s.time_slot }}</span>
                 <span class="text-[10px] px-1.5 py-0.5 rounded font-bold" :class="parseInt(s.time_slot) < 12 ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'">
                   {{ parseInt(s.time_slot) < 12 ? '上班' : '下班' }}
                 </span>
-                <span v-if="editingSlotTime === s.time_slot" class="text-[10px] bg-emerald-600 text-white px-1.5 py-0.5 rounded font-bold">編輯中</span>
               </div>
-              <div class="text-xs text-slate-500">預設容量：{{ s.default_capacity }} 人</div>
-              <div class="text-[11px] text-emerald-800 font-medium">
-                <i class="fa-regular fa-clock mr-0.5"></i>截止：{{ s.cutoff_day === 'PREV' ? '前一日' : '當日' }} {{ formatTimeStr(s.cutoff_time) }}
+              <div class="text-[11px] text-slate-500">容量：{{ s.default_capacity }} 人</div>
+              <div class="text-[10px] md:text-[11px] text-emerald-800 font-medium">
+                截止：{{ s.cutoff_day === 'PREV' ? '前日' : '當日' }}{{ formatTimeStr(s.cutoff_time) }}
               </div>
             </div>
-            <button @click.stop="handleDeleteDefaultSlot(s)" class="text-rose-400 hover:text-rose-600 text-sm p-2 transition rounded-lg hover:bg-rose-50" title="刪除此時段">
+            <button @click.stop="handleDeleteDefaultSlot(s)" class="text-rose-400 hover:text-rose-600 text-sm p-1.5 transition rounded-lg hover:bg-rose-50" title="刪除此時段">
               <i class="fa-regular fa-trash-can"></i>
             </button>
           </div>
@@ -443,23 +468,23 @@
       </section>
 
       <!-- 區塊 2：特定日期微調與加開 (支援帶入修改與防呆刪除) -->
-      <section class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+      <section class="bg-white border border-slate-200 rounded-2xl p-4 md:p-5 shadow-sm space-y-4">
         <div class="border-b pb-3 flex justify-between items-center">
           <div>
-            <h2 class="font-bold text-slate-800 text-base flex items-center space-x-2">
+            <h2 class="font-bold text-slate-800 text-sm md:text-base flex items-center space-x-2">
               <i class="fa-solid fa-calendar-day text-emerald-600"></i>
               <span>特定日期班次微調 / 臨時加開車</span>
             </h2>
-            <p class="text-xs text-slate-400 mt-0.5">可針對所選日期單獨開啟、關閉、修改或刪除班次。點擊下方卡片可直接載入修改。</p>
+            <p class="text-xs text-slate-400 mt-0.5 hidden sm:block">可針對所選日期單獨開啟、關閉、修改或刪除班次。點擊下方卡片可直接載入修改。</p>
           </div>
           <input type="date" v-model="rideDate" @change="onDateChanged" class="border border-slate-300 rounded-lg px-2 py-1 text-xs outline-none font-semibold">
         </div>
 
-        <div class="border rounded-xl p-3.5 space-y-2 transition" :class="editingDailyTime ? 'bg-amber-50/60 border-amber-300 ring-2 ring-amber-100' : 'bg-emerald-50/60 border-emerald-200'">
+        <div class="border rounded-xl p-3 md:p-3.5 space-y-2 transition" :class="editingDailyTime ? 'bg-amber-50/60 border-amber-300 ring-2 ring-amber-100' : 'bg-emerald-50/60 border-emerald-200'">
           <div class="flex justify-between items-center">
             <span class="text-xs font-bold" :class="editingDailyTime ? 'text-amber-900' : 'text-emerald-900'">
               <i :class="editingDailyTime ? 'fa-solid fa-pen-to-square text-amber-600' : 'fa-solid fa-plus text-emerald-600'"></i>
-              {{ editingDailyTime ? `正在修改 ${rideDate} 的 [${editingDailyTime}] 班次設定：` : `加開班次至 ${rideDate}：` }}
+              {{ editingDailyTime ? `正在修改 [${editingDailyTime}] 班次設定：` : `加開班次至 ${rideDate}：` }}
             </span>
             <button v-if="editingDailyTime" @click="cancelDailyEdit" class="text-xs text-slate-500 hover:text-rose-600 flex items-center space-x-1">
               <i class="fa-solid fa-xmark"></i>
@@ -467,32 +492,31 @@
             </button>
           </div>
 
-          <div class="flex flex-wrap items-center gap-3">
-            <div class="flex items-center space-x-1">
+          <div class="grid grid-cols-2 md:flex md:flex-wrap items-center gap-2.5 md:gap-3">
+            <div class="flex flex-col md:flex-row md:items-center space-y-1 md:space-y-0 md:space-x-1">
               <span class="text-xs text-slate-600">時段：</span>
-              <input type="text" v-model="dailyAddSlotTime" :disabled="!!editingDailyTime" placeholder="時段 如 19:30" class="border border-slate-300 rounded-lg px-2 py-1 text-xs w-24 bg-white outline-none font-bold disabled:bg-slate-100 disabled:text-slate-500">
+              <input type="text" v-model="dailyAddSlotTime" :disabled="!!editingDailyTime" placeholder="時段 如 19:30" class="border border-slate-300 rounded-lg px-2 py-1 text-xs w-full md:w-24 bg-white outline-none font-bold disabled:bg-slate-100 disabled:text-slate-500">
             </div>
 
-            <div class="flex items-center space-x-1">
+            <div class="flex flex-col md:flex-row md:items-center space-y-1 md:space-y-0 md:space-x-1">
               <span class="text-xs text-slate-600">上限：</span>
-              <input type="number" v-model="dailyAddCapacity" min="1" max="50" class="border border-slate-300 rounded-lg px-2 py-1 text-xs w-16 bg-white outline-none font-bold">
-              <span class="text-xs text-slate-500">人</span>
+              <input type="number" v-model="dailyAddCapacity" min="1" max="50" class="border border-slate-300 rounded-lg px-2 py-1 text-xs w-full md:w-16 bg-white outline-none font-bold">
             </div>
 
-            <div class="flex items-center space-x-1">
+            <div class="flex flex-col md:flex-row md:items-center space-y-1 md:space-y-0 md:space-x-1">
               <span class="text-xs text-slate-600">截止基準：</span>
-              <select v-model="dailyAddCutoffDay" class="border border-slate-300 rounded-lg px-2 py-1 text-xs bg-white outline-none font-medium">
+              <select v-model="dailyAddCutoffDay" class="border border-slate-300 rounded-lg px-2 py-1 text-xs bg-white outline-none font-medium w-full md:w-auto">
                 <option value="PREV">搭乘前一日</option>
                 <option value="SAME">搭乘當日</option>
               </select>
             </div>
 
-            <div class="flex items-center space-x-1">
+            <div class="flex flex-col md:flex-row md:items-center space-y-1 md:space-y-0 md:space-x-1">
               <span class="text-xs text-slate-600">截止時間：</span>
-              <input type="text" v-model="dailyAddCutoffTime" placeholder="如 15:00 或 06:00" class="border border-slate-300 rounded-lg px-2 py-1 text-xs w-28 bg-white outline-none font-bold">
+              <input type="text" v-model="dailyAddCutoffTime" placeholder="如 15:00" class="border border-slate-300 rounded-lg px-2 py-1 text-xs w-full md:w-24 bg-white outline-none font-bold">
             </div>
 
-            <button @click="handleDailyAddSlot" class="text-white text-xs px-3.5 py-1.5 rounded-lg font-bold transition shadow-sm flex items-center space-x-1" :class="editingDailyTime ? 'bg-amber-600 hover:bg-amber-700' : 'bg-emerald-600 hover:bg-emerald-700'">
+            <button @click="handleDailyAddSlot" class="col-span-2 md:col-span-1 text-white text-xs px-3.5 py-1.5 rounded-lg font-bold transition shadow-sm flex items-center justify-center space-x-1" :class="editingDailyTime ? 'bg-amber-600 hover:bg-amber-700' : 'bg-emerald-600 hover:bg-emerald-700'">
               <i :class="editingDailyTime ? 'fa-solid fa-check' : 'fa-solid fa-plus'"></i>
               <span>{{ editingDailyTime ? '儲存當日修改' : '加開班次' }}</span>
             </button>
@@ -511,11 +535,10 @@
                  ]">
               <div>
                 <div class="flex items-center space-x-1.5">
-                  <span class="font-bold text-sm text-slate-800">{{ s.time_slot }}</span>
+                  <span class="font-bold text-sm text-slate-800 font-mono">{{ s.time_slot }}</span>
                   <span class="text-[10px] px-1.5 py-0.5 rounded font-bold" :class="s.status === 'CLOSED' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'">
                     {{ s.status === 'CLOSED' ? '停駛' : '開放中' }}
                   </span>
-                  <span v-if="editingDailyTime === s.time_slot" class="text-[10px] bg-amber-600 text-white px-1.5 py-0.5 rounded font-bold">修改中</span>
                 </div>
                 <div class="text-xs text-slate-500 mt-0.5">預約：{{ s.current_booked }} / {{ s.max_capacity }} 人</div>
                 <div class="text-[11px] text-slate-500 mt-0.5">截止：{{ s.cutoff_day === 'PREV' ? '前一日' : '當日' }} {{ formatTimeStr(s.cutoff_time) }}</div>
@@ -535,30 +558,30 @@
       </section>
 
       <!-- 區塊 3：多帳號權限維護與密碼管控 -->
-      <section class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+      <section class="bg-white border border-slate-200 rounded-2xl p-4 md:p-5 shadow-sm space-y-4">
         <div class="flex justify-between items-center border-b pb-3">
           <div>
-            <h2 class="font-bold text-slate-800 text-base flex items-center space-x-2">
+            <h2 class="font-bold text-slate-800 text-sm md:text-base flex items-center space-x-2">
               <i class="fa-solid fa-users-gear text-emerald-600"></i>
               <span>系統帳號與權限管控中心</span>
             </h2>
-            <p class="text-xs text-slate-400 mt-0.5">可維護多位管理員與駕駛帳號密碼，並可隨時建立或修改。</p>
+            <p class="text-xs text-slate-400 mt-0.5 hidden sm:block">可維護多位管理員與駕駛帳號密碼，並可隨時建立或修改。</p>
           </div>
           <button @click="loadUsers" class="text-xs text-slate-400 hover:text-emerald-600">
-            <i class="fa-solid fa-rotate-right mr-1"></i>重新整理帳號
+            <i class="fa-solid fa-rotate-right mr-1"></i>重新整理
           </button>
         </div>
 
         <!-- 新增帳號區域 -->
-        <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 md:p-4 space-y-2">
           <span class="text-xs font-bold text-slate-700 flex items-center space-x-1">
             <i class="fa-solid fa-user-plus text-emerald-600"></i>
             <span>新增管理員 / 駕駛帳號：</span>
           </span>
           <div class="grid grid-cols-1 sm:grid-cols-4 gap-2 pt-1">
-            <input type="text" v-model="newUserName" placeholder="登入帳號 (如 driver_lin)" class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs bg-white outline-none font-mono">
+            <input type="text" v-model="newUserName" placeholder="登入帳號" class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs bg-white outline-none font-mono">
             <input type="password" v-model="newUserPassword" placeholder="設定密碼" class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs bg-white outline-none font-mono">
-            <input type="text" v-model="newUserRealName" placeholder="使用者姓名 (如 林司機)" class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs bg-white outline-none">
+            <input type="text" v-model="newUserRealName" placeholder="使用者姓名" class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs bg-white outline-none">
             <div class="flex space-x-1.5">
               <select v-model="newUserRole" class="border border-slate-300 rounded-lg px-2 py-1.5 text-xs bg-white outline-none flex-1 font-semibold">
                 <option value="driver">駕駛</option>
@@ -576,31 +599,31 @@
           <table class="w-full text-xs text-left">
             <thead class="bg-slate-50 text-slate-500 border-b">
               <tr>
-                <th class="py-2.5 px-4">帳號</th>
-                <th class="py-2.5 px-4">姓名</th>
-                <th class="py-2.5 px-4">身分權限</th>
-                <th class="py-2.5 px-4">重設密碼</th>
-                <th class="py-2.5 px-4 text-center">操作</th>
+                <th class="py-2.5 px-3 md:px-4">帳號</th>
+                <th class="py-2.5 px-3 md:px-4">姓名</th>
+                <th class="py-2.5 px-3 md:px-4">身分</th>
+                <th class="py-2.5 px-3 md:px-4">重設密碼</th>
+                <th class="py-2.5 px-3 md:px-4 text-center">操作</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
               <tr v-for="u in usersList" :key="u.id" class="hover:bg-slate-50/80">
-                <td class="py-2.5 px-4 font-mono font-bold text-slate-700">{{ u.username }}</td>
-                <td class="py-2.5 px-4 text-slate-800 font-medium">{{ u.real_name }}</td>
-                <td class="py-2.5 px-4">
+                <td class="py-2.5 px-3 md:px-4 font-mono font-bold text-slate-700">{{ u.username }}</td>
+                <td class="py-2.5 px-3 md:px-4 text-slate-800 font-medium">{{ u.real_name }}</td>
+                <td class="py-2.5 px-3 md:px-4">
                   <span class="text-[10px] px-2 py-0.5 rounded font-bold" :class="u.role === 'admin' ? 'bg-purple-100 text-purple-800 border border-purple-200' : 'bg-blue-100 text-blue-800 border border-blue-200'">
-                    {{ u.role === 'admin' ? '系統管理員' : '車輛駕駛' }}
+                    {{ u.role === 'admin' ? '管理員' : '駕駛' }}
                   </span>
                 </td>
-                <td class="py-2.5 px-4">
+                <td class="py-2.5 px-3 md:px-4">
                   <div class="flex items-center space-x-1.5">
-                    <input type="password" v-model="u._newPassword" placeholder="輸入新密碼" class="border border-slate-200 rounded px-2 py-1 text-xs w-28 bg-white outline-none font-mono">
+                    <input type="password" v-model="u._newPassword" placeholder="新密碼" class="border border-slate-200 rounded px-2 py-1 text-xs w-20 md:w-28 bg-white outline-none font-mono">
                     <button @click="handleUpdatePassword(u)" class="text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded transition font-bold">
                       更新
                     </button>
                   </div>
                 </td>
-                <td class="py-2.5 px-4 text-center">
+                <td class="py-2.5 px-3 md:px-4 text-center">
                   <button @click="handleDeleteUser(u)" class="text-rose-500 hover:text-rose-700 p-1 transition" title="刪除帳號">
                     <i class="fa-regular fa-trash-can"></i>
                   </button>
@@ -614,8 +637,38 @@
     </main>
 
     <!-- ============================================== -->
-    <!-- 帳號密碼登入驗證彈窗 Modal (防護非預約功能) -->
+    <!-- [手機專屬] 底部導航列 (在 PC/NB 上完全自動隱藏) -->
     <!-- ============================================== -->
+    <nav class="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 z-40 flex justify-around items-center py-2 px-2 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+      <button @click="switchTab('booking')" 
+              class="flex flex-col items-center justify-center flex-1 py-1 transition"
+              :class="currentTab === 'booking' ? 'text-emerald-700 font-bold' : 'text-slate-400'">
+        <i class="fa-solid fa-calendar-plus text-lg"></i>
+        <span class="text-[10px] mt-0.5">預約班次</span>
+      </button>
+
+      <button @click="switchTab('admin')" 
+              class="flex flex-col items-center justify-center flex-1 py-1 transition"
+              :class="currentTab === 'admin' ? 'text-emerald-700 font-bold' : 'text-slate-400'">
+        <div class="relative">
+          <i class="fa-solid fa-clipboard-user text-lg"></i>
+          <span v-if="!currentUser" class="absolute -top-1 -right-2 w-2 h-2 rounded-full bg-amber-400"></span>
+        </div>
+        <span class="text-[10px] mt-0.5">司機名冊</span>
+      </button>
+
+      <button @click="switchTab('slot_mgmt')" 
+              class="flex flex-col items-center justify-center flex-1 py-1 transition"
+              :class="currentTab === 'slot_mgmt' ? 'text-emerald-700 font-bold' : 'text-slate-400'">
+        <div class="relative">
+          <i class="fa-solid fa-sliders text-lg"></i>
+          <span v-if="!currentUser || currentUser.role !== 'admin'" class="absolute -top-1 -right-2 w-2 h-2 rounded-full bg-amber-400"></span>
+        </div>
+        <span class="text-[10px] mt-0.5">時段/帳號</span>
+      </button>
+    </nav>
+
+    <!-- 帳號密碼登入驗證彈窗 Modal -->
     <div v-if="showAuthModal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
       <div class="bg-white w-full max-w-sm rounded-2xl p-5 space-y-4 shadow-2xl">
         <div class="text-center space-y-1">
@@ -672,7 +725,6 @@
         const rideDate = ref(tomorrow.toISOString().split('T')[0]);
         const dateOffset = ref(1);
 
-        // 登入者身分 (從 sessionStorage 讀取)
         const currentUser = ref(JSON.parse(sessionStorage.getItem('shuttle_current_user') || 'null'));
         const showAuthModal = ref(false);
         const pendingTab = ref('');
@@ -680,14 +732,12 @@
         const loginPassword = ref('');
         const authErrorMsg = ref('');
 
-        // 帳號管理清單與新增欄位
         const usersList = ref([]);
         const newUserName = ref('');
         const newUserPassword = ref('');
         const newUserRealName = ref('');
         const newUserRole = ref('driver');
 
-        // 乘車人員輸入欄位
         const inputDept = ref('');
         const inputEmpNo = ref('');
         const inputName = ref('');
@@ -696,11 +746,9 @@
 
         const schedules = ref([]);
         const passengers = ref([]);
-
         const showMyBookingsModal = ref(false);
         const myBookings = ref([]);
 
-        // 時段維護狀態
         const defaultSlots = ref([]);
         const newSlotTime = ref('');
         const newSlotCapacity = ref(8);
@@ -708,7 +756,6 @@
         const newSlotCutoffTime = ref('21:00');
         const editingSlotTime = ref(null);
 
-        // 特定日期班次維護狀態
         const dailyAddSlotTime = ref('');
         const dailyAddCapacity = ref(8);
         const dailyAddCutoffDay = ref('SAME');
@@ -721,7 +768,6 @@
           setTimeout(() => { alertMsg.value = ''; }, 4500);
         };
 
-        // 權限分頁切換
         const switchTab = (tab) => {
           if (tab === 'booking') {
             currentTab.value = 'booking';
@@ -755,10 +801,9 @@
           }
         };
 
-        // 登入驗證
         const submitAuth = async () => {
           if (!loginUsername.value.trim() || !loginPassword.value.trim()) {
-            authErrorMsg.value = '請輸入完整帳號與密碼！';
+            authErrorMsg.value = '請輸入帳號與密碼！';
             return;
           }
 
@@ -783,7 +828,7 @@
               sessionStorage.setItem('shuttle_current_user', JSON.stringify(data));
               showAuthModal.value = false;
               currentTab.value = pendingTab.value;
-              showAlert(`登入成功！歡迎 ${data.real_name} (${data.role === 'admin' ? '管理員' : '駕駛'})`, 'success');
+              showAlert(`登入成功！歡迎 ${data.real_name}`, 'success');
               if (currentTab.value === 'admin') loadPassengers();
               if (currentTab.value === 'slot_mgmt') {
                 loadDefaultSlots();
@@ -792,7 +837,7 @@
               }
             }
           } catch (e) {
-            authErrorMsg.value = '伺服器連線異常，請稍後重試';
+            authErrorMsg.value = '連線異常，請稍後重試';
           }
         };
 
@@ -811,20 +856,19 @@
           showAlert('已登出管理帳號');
         };
 
-        // 帳號管理函式
         const loadUsers = async () => {
           try {
             const res = await fetch('/api/admin/users');
             const data = await res.json();
             usersList.value = (data.users || []).map(u => ({ ...u, _newPassword: '' }));
           } catch (e) {
-            console.error('載入帳號清單失敗', e);
+            console.error(e);
           }
         };
 
         const handleCreateUser = async () => {
           if (!newUserName.value.trim() || !newUserPassword.value.trim() || !newUserRealName.value.trim()) {
-            showAlert('請填寫完整帳號、密碼與使用者姓名！', 'error');
+            showAlert('請填寫完整帳號、密碼與姓名！', 'error');
             return;
           }
 
@@ -842,7 +886,7 @@
 
             const data = await res.json();
             if (!res.ok) {
-              showAlert(data.detail || '建立帳號失敗', 'error');
+              showAlert(data.detail || '建立失敗', 'error');
             } else {
               showAlert(data.message, 'success');
               newUserName.value = '';
@@ -857,7 +901,7 @@
 
         const handleUpdatePassword = async (u) => {
           if (!u._newPassword || !u._newPassword.trim()) {
-            showAlert('請先在輸入框填寫新密碼！', 'error');
+            showAlert('請填寫新密碼！', 'error');
             return;
           }
 
@@ -865,17 +909,14 @@
             const res = await fetch('/api/admin/users', {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                id: u.id,
-                password: u._newPassword.trim()
-              })
+              body: JSON.stringify({ id: u.id, password: u._newPassword.trim() })
             });
 
             const data = await res.json();
             if (!res.ok) {
-              showAlert(data.detail || '密碼更新失敗', 'error');
+              showAlert(data.detail || '修改失敗', 'error');
             } else {
-              showAlert(`帳號 [${u.username}] 密碼已更新成功！`, 'success');
+              showAlert(`[${u.username}] 密碼已更新！`, 'success');
               u._newPassword = '';
             }
           } catch (e) {
@@ -885,18 +926,15 @@
 
         const handleDeleteUser = async (u) => {
           if (currentUser.value && currentUser.value.username === u.username) {
-            showAlert('不可刪除目前正在登入使用的自己帳號！', 'error');
+            showAlert('不可刪除目前正在使用的自己帳號！', 'error');
             return;
           }
-
-          const ok = confirm(`確定要刪除帳號 [${u.username}] (${u.real_name}) 嗎？`);
-          if (!ok) return;
+          if (!confirm(`確定要刪除帳號 [${u.username}] (${u.real_name}) 嗎？`)) return;
 
           try {
             const res = await fetch(`/api/admin/users/${u.id}?current_username=${encodeURIComponent(currentUser.value ? currentUser.value.username : '')}`, {
               method: 'DELETE'
             });
-
             const data = await res.json();
             if (!res.ok) {
               showAlert(data.detail || '刪除失敗', 'error');
@@ -940,7 +978,21 @@
           if (currentTab.value === 'admin') loadPassengers();
         };
 
+        const changeDateOffsetBy = (delta) => {
+          const parts = rideDate.value.replace(/\//g, '-').split('-');
+          const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+          d.setDate(d.getDate() + delta);
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          rideDate.value = `${y}-${m}-${day}`;
+          dateOffset.value = -99;
+          loadSchedules();
+          if (currentTab.value === 'admin') loadPassengers();
+        };
+
         const onDateChanged = () => {
+          dateOffset.value = -99;
           cancelDailyEdit();
           loadSchedules();
           if (currentTab.value === 'admin') loadPassengers();
@@ -969,7 +1021,7 @@
           newSlotCapacity.value = slot.default_capacity;
           newSlotCutoffDay.value = slot.cutoff_day || 'PREV';
           newSlotCutoffTime.value = formatTimeStr(slot.cutoff_time);
-          showAlert(`已載入 [${slot.time_slot}] 班次資訊，可直接修改上方數值！`, 'success');
+          showAlert(`已載入 [${slot.time_slot}] 班次資訊！`, 'success');
         };
 
         const cancelEditSlot = () => {
@@ -986,7 +1038,7 @@
           dailyAddCapacity.value = slot.max_capacity;
           dailyAddCutoffDay.value = slot.cutoff_day || 'SAME';
           dailyAddCutoffTime.value = formatTimeStr(slot.cutoff_time);
-          showAlert(`已載入 ${rideDate.value} 的 [${slot.time_slot}] 班次，可修改人數與截止時間！`, 'success');
+          showAlert(`已載入 [${slot.time_slot}] 班次！`, 'success');
         };
 
         const cancelDailyEdit = () => {
@@ -1007,17 +1059,13 @@
           if (!ok) return;
 
           try {
-            const res = await fetch(`/api/admin/daily-slots/${slot.schedule_id}`, { 
-              method: 'DELETE' 
-            });
+            const res = await fetch(`/api/admin/daily-slots/${slot.schedule_id}`, { method: 'DELETE' });
             const data = await res.json();
             if (!res.ok) {
               showAlert(data.detail || '刪除失敗', 'error');
             } else {
               showAlert(data.message, 'success');
-              if (editingDailyTime.value === slot.time_slot) {
-                cancelDailyEdit();
-              }
+              if (editingDailyTime.value === slot.time_slot) cancelDailyEdit();
               await loadSchedules();
             }
           } catch (e) {
@@ -1048,7 +1096,7 @@
           currentEmp.value = person;
           isRemembered.value = true;
           localStorage.setItem('shuttle_emp_profile', JSON.stringify(person));
-          showAlert(`已設定乘車人：${person.emp_name} (${person.dept_name})`);
+          showAlert(`已設定：${person.emp_name} (${person.dept_name})`);
           return person;
         };
 
@@ -1160,7 +1208,7 @@
             const data = await res.json();
             passengers.value = data.passengers || [];
           } catch (e) {
-            console.error('名冊載入異常', e);
+            console.error(e);
           }
         };
 
@@ -1189,8 +1237,7 @@
         });
 
         const handleCancelBooking = async (booking) => {
-          const ok = confirm(`確定要取消 ${booking.ride_date} ${booking.time_slot} 的班次嗎？`);
-          if (!ok) return;
+          if (!confirm(`確定要取消 ${booking.ride_date} ${booking.time_slot} 的班次嗎？`)) return;
 
           try {
             const res = await fetch('/api/bookings/cancel', {
@@ -1214,7 +1261,6 @@
           }
         };
 
-        // 時段維護相關
         const loadDefaultSlots = async () => {
           try {
             const res = await fetch('/api/admin/default-slots');
@@ -1226,12 +1272,8 @@
         };
 
         const handleAddDefaultSlot = async () => {
-          if (!newSlotTime.value) {
-            showAlert('請填寫發車時段 (例如 06:45)', 'error');
-            return;
-          }
-          if (!newSlotCutoffTime.value) {
-            showAlert('請填寫截止時間 (例如 06:00)', 'error');
+          if (!newSlotTime.value || !newSlotCutoffTime.value) {
+            showAlert('請完整填寫發車與截止時間！', 'error');
             return;
           }
           const formattedCutoff = formatTimeStr(newSlotCutoffTime.value);
@@ -1263,9 +1305,7 @@
             const res = await fetch(`/api/admin/default-slots/${slot.slot_id}`, { method: 'DELETE' });
             const data = await res.json();
             showAlert(data.message);
-            if (editingSlotTime.value === slot.time_slot) {
-              cancelEditSlot();
-            }
+            if (editingSlotTime.value === slot.time_slot) cancelEditSlot();
             loadDefaultSlots();
           } catch (e) {
             showAlert('刪除失敗', 'error');
@@ -1334,7 +1374,7 @@
           dailyAddSlotTime, dailyAddCapacity, dailyAddCutoffDay, dailyAddCutoffTime, editingDailyTime,
           switchTab, submitAuth, cancelAuth, handleLogout,
           loadUsers, handleCreateUser, handleUpdatePassword, handleDeleteUser,
-          getWeekday, formatTimeStr, setDateOffset, onDateChanged, autoSuggestCutoff, selectSlotToEdit, cancelEditSlot,
+          getWeekday, formatTimeStr, setDateOffset, changeDateOffsetBy, onDateChanged, autoSuggestCutoff, selectSlotToEdit, cancelEditSlot,
           selectDailySlotToEdit, cancelDailyEdit, handleDeleteDailySlot,
           confirmPersonProfile, resetRememberedEmp,
           loadSchedules, loadPassengers, openMyBookingsModal, canBook, getBtnText, getSlotCardClass,
