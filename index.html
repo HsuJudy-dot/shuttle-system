@@ -28,7 +28,7 @@
   <div id="app" class="min-h-screen flex flex-col">
     
     <!-- ============================================== -->
-    <!-- 頂部品牌 Header (手機版移除遮蔽的右上登出鈕) -->
+    <!-- 頂部 Header：手機端右上角絕對不放登出，避免遮擋 -->
     <!-- ============================================== -->
     <header class="bg-emerald-800 text-white px-4 md:px-8 py-3.5 sticky top-0 z-30 shadow-md flex justify-between items-center">
       <div class="flex items-center space-x-2.5">
@@ -42,7 +42,7 @@
         </div>
       </div>
       
-      <!-- [PC專屬] 導航切換 -->
+      <!-- [PC專屬] 頂部導航切換 -->
       <div class="hidden md:flex items-center space-x-3">
         <div class="flex bg-emerald-900/60 p-1 rounded-xl text-sm">
           <button @click="switchTab('booking')" :class="{'bg-emerald-600 text-white font-bold shadow': currentTab === 'booking', 'text-emerald-200 hover:text-white': currentTab !== 'booking'}" class="px-4 py-1.5 rounded-lg transition flex items-center space-x-1.5">
@@ -70,8 +70,8 @@
         </div>
       </div>
 
-      <!-- [手機專屬] 快捷乘車紀錄 (右上不再放置登出鈕) -->
-      <div class="flex md:hidden items-center space-x-2">
+      <!-- [手機專屬] 僅顯示我的搭乘記錄按鈕 -->
+      <div class="flex md:hidden items-center">
         <button @click="openMyBookingsModal" class="bg-emerald-700/80 active:bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-xl font-bold flex items-center space-x-1 shadow-sm">
           <i class="fa-solid fa-receipt text-[11px]"></i>
           <span>我的搭乘</span>
@@ -616,12 +616,12 @@
     </main>
 
     <!-- ============================================== -->
-    <!-- [手機專屬] 底部浮動導航列 (右側配置獨立登出按鈕) -->
+    <!-- [手機專屬] 底部浮動導航列 (4 顆按鈕均勻排列，永遠好按) -->
     <!-- ============================================== -->
-    <nav class="md:hidden fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur border-t border-slate-200 z-40 flex justify-around items-center py-2 px-1 shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
+    <nav class="md:hidden fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur border-t border-slate-200 z-40 grid grid-cols-4 py-2 px-1 shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
       <!-- 1. 預約 -->
       <button @click="switchTab('booking')" 
-              class="flex flex-col items-center justify-center flex-1 py-1 transition"
+              class="flex flex-col items-center justify-center py-1 transition"
               :class="currentTab === 'booking' ? 'text-emerald-700 font-black' : 'text-slate-400'">
         <i class="fa-solid fa-bus text-lg"></i>
         <span class="text-[10px] mt-0.5">預約班次</span>
@@ -629,7 +629,7 @@
 
       <!-- 2. 名冊 -->
       <button @click="switchTab('admin')" 
-              class="flex flex-col items-center justify-center flex-1 py-1 transition"
+              class="flex flex-col items-center justify-center py-1 transition"
               :class="currentTab === 'admin' ? 'text-emerald-700 font-black' : 'text-slate-400'">
         <div class="relative">
           <i class="fa-solid fa-clipboard-user text-lg"></i>
@@ -638,9 +638,9 @@
         <span class="text-[10px] mt-0.5">司機名冊</span>
       </button>
 
-      <!-- 3. 時段/帳號維護 -->
+      <!-- 3. 時段維護 -->
       <button @click="switchTab('slot_mgmt')" 
-              class="flex flex-col items-center justify-center flex-1 py-1 transition"
+              class="flex flex-col items-center justify-center py-1 transition"
               :class="currentTab === 'slot_mgmt' ? 'text-emerald-700 font-black' : 'text-slate-400'">
         <div class="relative">
           <i class="fa-solid fa-sliders text-lg"></i>
@@ -649,11 +649,12 @@
         <span class="text-[10px] mt-0.5">時段維護</span>
       </button>
 
-      <!-- 4. 獨立登出按鈕 (已登入時在右側出現，手機單手好按) -->
-      <button v-if="currentUser" @click="handleLogout" 
-              class="flex flex-col items-center justify-center flex-1 py-1 transition text-rose-500 hover:text-rose-700 active:scale-95">
-        <i class="fa-solid fa-arrow-right-from-bracket text-lg"></i>
-        <span class="text-[10px] mt-0.5 font-bold">登出</span>
+      <!-- 4. 右下角獨立登入/登出按鈕 -->
+      <button @click="handleBottomAuthClick" 
+              class="flex flex-col items-center justify-center py-1 transition active:scale-95"
+              :class="currentUser ? 'text-rose-600 font-bold' : 'text-slate-400'">
+        <i :class="currentUser ? 'fa-solid fa-arrow-right-from-bracket text-lg' : 'fa-solid fa-shield-halved text-lg'"></i>
+        <span class="text-[10px] mt-0.5">{{ currentUser ? '登出' : '管理登入' }}</span>
       </button>
     </nav>
 
@@ -701,16 +702,15 @@
   </div>
 
   <script>
-    const { createApp, ref, computed, onMounted, watch } = Vue;
+    const { createApp, ref, computed, onMounted } = Vue;
 
     createApp({
       setup() {
         const currentTab = ref('booking');
-        const directionTab = ref('morning'); // 'morning' (上班) 或 'evening' (下班)
+        const directionTab = ref('morning');
         const alertMsg = ref('');
         const alertType = ref('success');
         
-        // 預設日期為明天
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
         const y = tomorrow.getFullYear();
@@ -720,7 +720,7 @@
 
         const currentUser = ref(JSON.parse(sessionStorage.getItem('shuttle_current_user') || 'null'));
         const showAuthModal = ref(false);
-        const pendingTab = ref('');
+        const pendingTab = ref('admin');
         const loginUsername = ref('');
         const loginPassword = ref('');
         const authErrorMsg = ref('');
@@ -874,10 +874,22 @@
           loginUsername.value = '';
           loginPassword.value = '';
           authErrorMsg.value = '';
-          pendingTab.value = '';
+          pendingTab.value = 'admin';
         };
 
-        // 登出時彈出確認視窗，避免單手點擊誤觸
+        // 手機底部第四顆按鈕處理
+        const handleBottomAuthClick = () => {
+          if (currentUser.value) {
+            handleLogout();
+          } else {
+            pendingTab.value = 'admin';
+            loginUsername.value = '';
+            loginPassword.value = '';
+            authErrorMsg.value = '';
+            showAuthModal.value = true;
+          }
+        };
+
         const handleLogout = () => {
           if (!confirm('確定要登出管理帳號嗎？')) return;
           currentUser.value = null;
@@ -1394,7 +1406,7 @@
           showMyBookingsModal, myBookings,
           defaultSlots, newSlotTime, newSlotCapacity, newSlotCutoffDay, newSlotCutoffTime, editingSlotTime,
           dailyAddSlotTime, dailyAddCapacity, dailyAddCutoffDay, dailyAddCutoffTime, editingDailyTime,
-          switchTab, submitAuth, cancelAuth, handleLogout,
+          switchTab, submitAuth, cancelAuth, handleBottomAuthClick, handleLogout,
           loadUsers, handleCreateUser, handleUpdatePassword, handleDeleteUser,
           getWeekday, formatTimeStr, onDateChanged, autoSuggestCutoff, selectSlotToEdit, cancelEditSlot,
           selectDailySlotToEdit, cancelDailyEdit, handleDeleteDailySlot,
