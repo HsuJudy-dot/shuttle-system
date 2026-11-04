@@ -1,0 +1,1348 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>生達化學製藥 - 上下班接駁專車預約平台</title>
+
+  <!-- PWA 設定 -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#065f46">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="生達派車">
+  <link rel="apple-touch-icon" href="/icon.png">
+
+  <!-- 外部樣式 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    * { -webkit-tap-highlight-color: transparent; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen select-none">
+  <div id="app" class="min-h-screen flex flex-col">
+    
+    <!-- 頂部導航列 -->
+    <header class="bg-emerald-800 text-white px-4 md:px-6 py-3 sticky top-0 z-30 shadow-md flex justify-between items-center">
+      <div class="flex items-center space-x-2.5">
+        <div class="w-9 h-9 bg-emerald-600 rounded-lg flex items-center justify-center font-black text-lg tracking-wider shadow">ST</div>
+        <div>
+          <div class="flex items-center space-x-1.5">
+            <span class="font-bold text-base md:text-lg tracking-wide">生達化學製藥</span>
+            <span class="bg-emerald-600/80 text-emerald-100 text-[10px] px-2 py-0.5 rounded-full">接駁專車</span>
+          </div>
+          <p class="text-[11px] text-emerald-200">上下班交通接送預約平台</p>
+        </div>
+      </div>
+      
+      <!-- 功能導航分頁 -->
+      <div class="flex items-center space-x-2">
+        <div class="flex bg-emerald-900/60 p-1 rounded-lg text-xs md:text-sm">
+          <button @click="switchTab('booking')" :class="{'bg-emerald-600 text-white font-bold shadow': currentTab === 'booking', 'text-emerald-200 hover:text-white': currentTab !== 'booking'}" class="px-3 py-1.5 rounded-md transition flex items-center space-x-1">
+            <i class="fa-solid fa-mobile-screen"></i>
+            <span>預約</span>
+          </button>
+          
+          <button @click="switchTab('admin')" :class="{'bg-emerald-600 text-white font-bold shadow': currentTab === 'admin', 'text-emerald-200 hover:text-white': currentTab !== 'admin'}" class="px-3 py-1.5 rounded-md transition flex items-center space-x-1">
+            <i class="fa-solid fa-clipboard-user"></i>
+            <span>名冊</span>
+            <i v-if="currentUser" class="fa-solid fa-lock-open text-[9px] text-emerald-300 ml-0.5"></i>
+            <i v-else class="fa-solid fa-lock text-[9px] text-emerald-300/60 ml-0.5"></i>
+          </button>
+          
+          <button @click="switchTab('slot_mgmt')" :class="{'bg-emerald-600 text-white font-bold shadow': currentTab === 'slot_mgmt', 'text-emerald-200 hover:text-white': currentTab !== 'slot_mgmt'}" class="px-3 py-1.5 rounded-md transition flex items-center space-x-1">
+            <i class="fa-regular fa-calendar-check"></i>
+            <span>時段維護</span>
+            <i v-if="currentUser && currentUser.role === 'admin'" class="fa-solid fa-lock-open text-[9px] text-emerald-300 ml-0.5"></i>
+            <i v-else class="fa-solid fa-lock text-[9px] text-emerald-300/60 ml-0.5"></i>
+          </button>
+        </div>
+
+        <!-- 登入資訊與登出按鈕 -->
+        <div v-if="currentUser" class="flex items-center space-x-1.5 bg-emerald-950/40 px-2 py-1 rounded-lg">
+          <div class="text-right hidden sm:block">
+            <div class="text-[11px] font-bold text-white">{{ currentUser.real_name }}</div>
+            <div class="text-[9px] text-emerald-300">{{ currentUser.role === 'admin' ? '管理員' : '駕駛' }}</div>
+          </div>
+          <button @click="handleLogout" class="text-xs text-rose-200 hover:text-white bg-rose-900/60 hover:bg-rose-700 px-2 py-1.5 rounded-md transition" title="登出管理帳號">
+            <i class="fa-solid fa-arrow-right-from-bracket"></i>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- 訊息提示橫條 -->
+    <div v-if="alertMsg" :class="alertType === 'error' ? 'bg-rose-600' : 'bg-emerald-600'" class="text-white text-xs md:text-sm px-4 md:px-6 py-2.5 flex justify-between items-center transition shadow-inner">
+      <div class="flex items-center space-x-2">
+        <i :class="alertType === 'error' ? 'fa-solid fa-triangle-exclamation' : 'fa-solid fa-circle-check'"></i>
+        <span>{{ alertMsg }}</span>
+      </div>
+      <button @click="alertMsg = ''" class="text-white/80 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <!-- ============================================== -->
+    <!-- 頁面 1：乘車預約介面 (開放員工與訪客預約) -->
+    <!-- ============================================== -->
+    <main v-if="currentTab === 'booking'" class="max-w-4xl w-full mx-auto p-3.5 md:p-6 space-y-4 md:space-y-6">
+      
+      <!-- 乘車人卡片 -->
+      <section class="bg-white border border-slate-200 rounded-2xl p-4 md:p-5 shadow-sm space-y-3">
+        <div v-if="currentEmp && isRemembered" class="space-y-3">
+          <div class="flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+              <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-lg shadow-sm">
+                <i class="fa-solid fa-user-check"></i>
+              </div>
+              <div>
+                <div class="flex items-center space-x-2">
+                  <span class="font-bold text-base text-slate-800">{{ currentEmp.emp_name }}</span>
+                  <span v-if="currentEmp.emp_no && !currentEmp.emp_no.startsWith('VISITOR_')" class="text-xs text-slate-400 font-mono">({{ currentEmp.emp_no }})</span>
+                  <span v-else class="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">免填員編</span>
+                </div>
+                <div class="flex items-center space-x-2 mt-0.5">
+                  <span class="text-xs text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">{{ currentEmp.dept_name }}</span>
+                  <span class="text-[11px] text-slate-400"><i class="fa-solid fa-mobile-screen mr-0.5"></i>已自動記住身分</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex flex-col items-end space-y-1">
+              <button @click="openMyBookingsModal" class="text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-2.5 py-1 rounded-lg font-bold border border-emerald-200 transition flex items-center space-x-1">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+                <span>我的預約</span>
+              </button>
+              <button @click="resetRememberedEmp" class="text-[11px] text-slate-400 hover:text-rose-600 transition flex items-center space-x-1">
+                <i class="fa-solid fa-arrow-right-arrow-left"></i>
+                <span>更換乘車人</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="space-y-3">
+          <div class="flex justify-between items-center">
+            <div class="flex items-center space-x-2 text-slate-700 font-bold text-sm md:text-base">
+              <i class="fa-solid fa-user-pen text-emerald-600"></i>
+              <span>輸入乘車人員資料</span>
+            </div>
+            <span class="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">確認後手機將自動記住</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">
+                部門 <span class="text-rose-500 font-bold">*必填</span>
+              </label>
+              <input type="text" v-model="inputDept" placeholder="如: 資訊課 / 外部顧問" 
+                     class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1">
+                員工編號 <span class="text-slate-400 font-normal">(非必填)</span>
+              </label>
+              <input type="text" v-model="inputEmpNo" placeholder="如: 12345 (訪客留空)" 
+                     class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">
+                姓名 <span class="text-rose-500 font-bold">*必填</span>
+              </label>
+              <div class="flex space-x-1.5">
+                <input type="text" v-model="inputName" placeholder="如: 王小明 / 陳會計師" 
+                       @keyup.enter="confirmPersonProfile"
+                       class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none">
+                <button @click="confirmPersonProfile" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3.5 py-2 rounded-xl font-bold whitespace-nowrap transition shadow-sm">
+                  確認
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 日期選取 -->
+      <section class="bg-white border border-slate-200 rounded-2xl p-4 md:p-5 shadow-sm space-y-3.5">
+        <div class="flex flex-wrap justify-between items-center gap-2.5">
+          <div class="flex items-center space-x-2">
+            <label class="text-xs md:text-sm font-bold text-slate-700">搭乘日期</label>
+            <input type="date" v-model="rideDate" @change="onDateChanged" class="border border-slate-300 rounded-xl px-2.5 py-1 text-xs md:text-sm font-semibold outline-none focus:ring-2 focus:ring-emerald-500">
+            <span class="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-lg font-medium">{{ getWeekday(rideDate) }}</span>
+          </div>
+
+          <div class="flex space-x-1 bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+            <button @click="setDateOffset(0)" :class="dateOffset === 0 ? 'bg-slate-800 text-white' : 'text-slate-600'" class="px-2.5 py-1 rounded-lg transition">今天</button>
+            <button @click="setDateOffset(1)" :class="dateOffset === 1 ? 'bg-slate-800 text-white' : 'text-slate-600'" class="px-2.5 py-1 rounded-lg transition">明天</button>
+            <button @click="setDateOffset(2)" :class="dateOffset === 2 ? 'bg-slate-800 text-white' : 'text-slate-600'" class="px-2.5 py-1 rounded-lg transition">後天</button>
+          </div>
+        </div>
+
+        <div class="bg-emerald-50/80 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-900 flex items-center space-x-2">
+          <i class="fa-solid fa-circle-info text-emerald-600 text-sm"></i>
+          <span>預約截止時間依各班次卡片上標示之時間為準，逾時系統將自動鎖定截止。</span>
+        </div>
+      </section>
+
+      <!-- 上班車次清單 -->
+      <section class="bg-white border border-slate-200 rounded-2xl p-4 md:p-5 shadow-sm space-y-3">
+        <div class="flex justify-between items-center border-b pb-2.5">
+          <div class="flex items-center space-x-2">
+            <span class="w-6 h-6 rounded-md bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold"><i class="fa-solid fa-arrow-up"></i></span>
+            <h2 class="font-bold text-slate-800 text-sm">上班接駁班次</h2>
+          </div>
+        </div>
+
+        <div v-if="morningSlots.length === 0" class="text-xs text-slate-400 py-3 text-center">該日未開放上班班次</div>
+        <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
+          <div v-for="slot in morningSlots" :key="slot.time_slot" class="border rounded-xl p-3 flex justify-between items-center transition" :class="getSlotCardClass(slot)">
+            <div>
+              <div class="flex items-center space-x-2">
+                <span class="font-black text-lg text-slate-800">{{ slot.time_slot }}</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded font-bold bg-blue-50 text-blue-700 border border-blue-200">上班</span>
+                <span class="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                  {{ slot.cutoff_day === 'PREV' ? '前一日' : '當日' }} {{ formatTimeStr(slot.cutoff_time) }} 截止
+                </span>
+              </div>
+              <div class="text-xs text-slate-500 mt-1">
+                剩餘名額：<strong :class="slot.remaining_seats > 0 ? 'text-emerald-600 font-bold' : 'text-rose-500'">{{ slot.remaining_seats }}</strong> / {{ slot.max_capacity }}
+              </div>
+            </div>
+            <button @click="handleBooking(slot)" :disabled="!canBook(slot)" class="px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm" :class="canBook(slot) ? 'bg-emerald-600 text-white active:scale-95' : 'bg-slate-100 text-slate-400 cursor-not-allowed'">
+              {{ getBtnText(slot) }}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 下班車次清單 -->
+      <section class="bg-white border border-slate-200 rounded-2xl p-4 md:p-5 shadow-sm space-y-3">
+        <div class="flex justify-between items-center border-b pb-2.5">
+          <div class="flex items-center space-x-2">
+            <span class="w-6 h-6 rounded-md bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold"><i class="fa-solid fa-arrow-down"></i></span>
+            <h2 class="font-bold text-slate-800 text-sm">下班接駁班次</h2>
+          </div>
+        </div>
+
+        <div v-if="eveningSlots.length === 0" class="text-xs text-slate-400 py-3 text-center">該日未開放下班班次</div>
+        <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
+          <div v-for="slot in eveningSlots" :key="slot.time_slot" class="border rounded-xl p-3 flex justify-between items-center transition" :class="getSlotCardClass(slot)">
+            <div>
+              <div class="flex items-center space-x-2">
+                <span class="font-black text-lg text-slate-800">{{ slot.time_slot }}</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded font-bold bg-amber-50 text-amber-700 border border-amber-200">下班</span>
+                <span class="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                  {{ slot.cutoff_day === 'PREV' ? '前一日' : '當日' }} {{ formatTimeStr(slot.cutoff_time) }} 截止
+                </span>
+              </div>
+              <div class="text-xs text-slate-500 mt-1">
+                剩餘名額：<strong :class="slot.remaining_seats > 0 ? 'text-emerald-600 font-bold' : 'text-rose-500'">{{ slot.remaining_seats }}</strong> / {{ slot.max_capacity }}
+              </div>
+            </div>
+            <button @click="handleBooking(slot)" :disabled="!canBook(slot)" class="px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm" :class="canBook(slot) ? 'bg-emerald-600 text-white active:scale-95' : 'bg-slate-100 text-slate-400 cursor-not-allowed'">
+              {{ getBtnText(slot) }}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 彈窗：我的預約清單 -->
+      <div v-if="showMyBookingsModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-sm rounded-2xl p-5 space-y-4 shadow-xl">
+          <div class="flex justify-between items-center border-b pb-3">
+            <h3 class="font-bold text-slate-800 text-base flex items-center space-x-2">
+              <i class="fa-solid fa-calendar-check text-emerald-600"></i>
+              <span>我的預約清單</span>
+            </h3>
+            <button @click="showMyBookingsModal = false" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark text-lg"></i></button>
+          </div>
+
+          <div v-if="myBookings.length === 0" class="text-center py-6 text-slate-400 text-xs">
+            目前查無預約記錄
+          </div>
+
+          <div v-else class="space-y-2 max-h-64 overflow-y-auto pr-1">
+            <div v-for="b in myBookings" :key="b.booking_id" class="border border-slate-200 rounded-xl p-3 flex justify-between items-center bg-slate-50 hover:bg-white transition">
+              <div>
+                <div class="flex items-center space-x-1.5">
+                  <span class="font-bold text-emerald-800 text-sm">{{ b.ride_date }}</span>
+                  <span class="text-[11px] text-slate-500 font-medium">({{ getWeekday(b.ride_date) }})</span>
+                </div>
+                <div class="flex items-center space-x-2 mt-1">
+                  <span class="font-black text-base text-slate-800">{{ b.time_slot }}</span>
+                  <span class="text-[10px] px-1.5 py-0.5 rounded font-bold" :class="parseInt(b.time_slot) < 12 ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'">
+                    {{ parseInt(b.time_slot) < 12 ? '上班接駁' : '下班接駁' }}
+                  </span>
+                </div>
+              </div>
+              <button @click="handleCancelBooking(b)" class="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 px-3 py-1.5 rounded-lg text-xs font-bold transition active:scale-95">
+                取消
+              </button>
+            </div>
+          </div>
+
+          <button @click="showMyBookingsModal = false" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 rounded-xl text-xs font-bold transition">
+            關閉
+          </button>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- ============================================== -->
+    <!-- 頁面 2：司機 / 管理名冊 (需登入駕駛或管理員) -->
+    <!-- ============================================== -->
+    <main v-if="currentTab === 'admin'" class="max-w-4xl w-full mx-auto p-4 md:p-6 space-y-5">
+      <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-wrap justify-between items-center gap-3">
+        <div>
+          <h2 class="font-bold text-slate-800 text-base">司機乘車點名清冊</h2>
+          <p class="text-xs text-slate-400 mt-0.5">搭乘日期：{{ rideDate }} ({{ getWeekday(rideDate) }}) • 當日搭乘同仁：{{ passengers.length }} 人</p>
+        </div>
+        <div class="flex items-center space-x-2">
+          <input type="date" v-model="rideDate" @change="loadPassengers" class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs outline-none font-semibold">
+          <button @click="window.print()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1">
+            <i class="fa-solid fa-print"></i>
+            <span>列印名冊</span>
+          </button>
+        </div>
+      </div>
+
+      <div v-if="passengers.length === 0" class="bg-white border border-dashed border-slate-300 rounded-2xl p-12 text-center text-slate-400 text-sm">
+        <i class="fa-regular fa-clipboard text-3xl mb-2 text-slate-300"></i>
+        <p>該日目前尚無任何同仁預約搭乘記錄</p>
+      </div>
+
+      <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div v-for="(list, slot) in groupedPassengers" :key="slot" class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+          <div class="bg-slate-50 px-4 py-3 border-b flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+              <span class="font-black text-base text-slate-800">{{ slot }}</span>
+              <span class="text-xs px-2 py-0.5 rounded font-bold" :class="parseInt(slot) < 12 ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'">
+                {{ parseInt(slot) < 12 ? '上班接送' : '下班接送' }}
+              </span>
+            </div>
+            <span class="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200">
+              {{ list.length }} 人預約
+            </span>
+          </div>
+
+          <table class="w-full text-xs text-left">
+            <thead class="bg-slate-50/50 text-slate-400 border-b">
+              <tr>
+                <th class="py-2 px-4">#</th>
+                <th class="py-2 px-4">部門</th>
+                <th class="py-2 px-4">員工編號</th>
+                <th class="py-2 px-4">姓名</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr v-for="(p, idx) in list" :key="p.booking_id" class="hover:bg-slate-50/80">
+                <td class="py-2.5 px-4 text-slate-400">{{ idx + 1 }}</td>
+                <td class="py-2.5 px-4 font-medium text-slate-600">{{ p.dept_name }}</td>
+                <td class="py-2.5 px-4 font-mono text-slate-500">
+                  <span v-if="p.emp_no && !p.emp_no.startsWith('VISITOR_')">{{ p.emp_no }}</span>
+                  <span v-else class="text-slate-400 italic">--</span>
+                </td>
+                <td class="py-2.5 px-4 font-bold text-slate-800">{{ p.emp_name }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+
+    <!-- ============================================== -->
+    <!-- 頁面 3：時段維護管理 (需管理員登入) -->
+    <!-- ============================================== -->
+    <main v-if="currentTab === 'slot_mgmt'" class="max-w-4xl w-full mx-auto p-4 md:p-6 space-y-6">
+      
+      <!-- 區塊 1：標準固定時段設定 (點選帶入) -->
+      <section class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+        <div class="flex justify-between items-center border-b pb-3">
+          <div>
+            <h2 class="font-bold text-slate-800 text-base flex items-center space-x-2">
+              <i class="fa-solid fa-clock-rotate-left text-emerald-600"></i>
+              <span>標準固定時段設定（平日預設產生）</span>
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">系統未來每日自動依此清單開放可搭乘班次。可直接點擊下方卡片帶入資料進行修改。</p>
+          </div>
+          <button @click="loadDefaultSlots" class="text-xs text-slate-400 hover:text-emerald-600">
+            <i class="fa-solid fa-rotate-right mr-1"></i>重新整理
+          </button>
+        </div>
+
+        <div class="bg-slate-50 border rounded-xl p-4 space-y-3 transition" :class="editingSlotTime ? 'border-emerald-400 ring-2 ring-emerald-100 bg-emerald-50/20' : 'border-slate-200'">
+          <div class="flex justify-between items-center">
+            <span class="text-xs font-bold text-slate-700 flex items-center space-x-1.5">
+              <i :class="editingSlotTime ? 'fa-solid fa-pen-to-square text-emerald-600' : 'fa-solid fa-plus text-slate-500'"></i>
+              <span>{{ editingSlotTime ? '正在編輯班次：' + editingSlotTime : '新增標準班次設定' }}</span>
+            </span>
+            <button v-if="editingSlotTime" @click="cancelEditSlot" class="text-xs text-slate-500 hover:text-rose-600 transition flex items-center space-x-1">
+              <i class="fa-solid fa-xmark"></i>
+              <span>取消編輯</span>
+            </button>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-3">
+            <div class="flex items-center space-x-1.5">
+              <label class="text-xs font-bold text-slate-600">發車時間：</label>
+              <input type="text" v-model="newSlotTime" @input="autoSuggestCutoff" placeholder="如 06:45 或 19:00" class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs w-32 outline-none focus:ring-2 focus:ring-emerald-500 bg-white font-mono font-bold">
+            </div>
+
+            <div class="flex items-center space-x-1.5">
+              <label class="text-xs font-bold text-slate-600">上限人數：</label>
+              <input type="number" v-model="newSlotCapacity" min="1" max="50" class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs w-16 outline-none focus:ring-2 focus:ring-emerald-500 bg-white font-bold">
+            </div>
+
+            <div class="flex items-center space-x-1.5">
+              <label class="text-xs font-bold text-slate-600">截止基準：</label>
+              <select v-model="newSlotCutoffDay" class="border border-slate-300 rounded-lg px-2 py-1.5 text-xs outline-none bg-white font-medium">
+                <option value="PREV">搭乘前一日</option>
+                <option value="SAME">搭乘當日</option>
+              </select>
+            </div>
+
+            <div class="flex items-center space-x-1.5">
+              <label class="text-xs font-bold text-slate-600">截止時間：</label>
+              <input type="text" v-model="newSlotCutoffTime" placeholder="如 21:00 或 06:00" class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs w-28 outline-none focus:ring-2 focus:ring-emerald-500 bg-white font-mono font-bold">
+            </div>
+
+            <button @click="handleAddDefaultSlot" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-4 py-2 rounded-lg font-bold transition flex items-center space-x-1 shadow-sm active:scale-95">
+              <i :class="editingSlotTime ? 'fa-solid fa-check' : 'fa-solid fa-plus'"></i>
+              <span>{{ editingSlotTime ? '儲存修改' : '新增標準時段' }}</span>
+            </button>
+          </div>
+          <p class="text-[11px] text-slate-400">💡 提示：點擊下方任何一個時段卡片即可直接將資訊載入此處快速編輯！</p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+          <div v-for="s in defaultSlots" :key="s.slot_id" 
+               @click="selectSlotToEdit(s)"
+               class="border rounded-xl p-3 flex justify-between items-center cursor-pointer transition shadow-sm"
+               :class="editingSlotTime === s.time_slot ? 'bg-emerald-50/70 border-emerald-500 ring-2 ring-emerald-200' : 'bg-white border-slate-200 hover:border-emerald-400 hover:bg-slate-50/80'">
+            <div class="space-y-0.5">
+              <div class="flex items-center space-x-2">
+                <span class="font-black text-base text-slate-800">{{ s.time_slot }}</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded font-bold" :class="parseInt(s.time_slot) < 12 ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'">
+                  {{ parseInt(s.time_slot) < 12 ? '上班' : '下班' }}
+                </span>
+                <span v-if="editingSlotTime === s.time_slot" class="text-[10px] bg-emerald-600 text-white px-1.5 py-0.5 rounded font-bold">編輯中</span>
+              </div>
+              <div class="text-xs text-slate-500">預設容量：{{ s.default_capacity }} 人</div>
+              <div class="text-[11px] text-emerald-800 font-medium">
+                <i class="fa-regular fa-clock mr-0.5"></i>截止：{{ s.cutoff_day === 'PREV' ? '前一日' : '當日' }} {{ formatTimeStr(s.cutoff_time) }}
+              </div>
+            </div>
+            <button @click.stop="handleDeleteDefaultSlot(s)" class="text-rose-400 hover:text-rose-600 text-sm p-2 transition rounded-lg hover:bg-rose-50" title="刪除此時段">
+              <i class="fa-regular fa-trash-can"></i>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 區塊 2：特定日期微調與加開 (支援帶入修改與防呆刪除) -->
+      <section class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+        <div class="border-b pb-3 flex justify-between items-center">
+          <div>
+            <h2 class="font-bold text-slate-800 text-base flex items-center space-x-2">
+              <i class="fa-solid fa-calendar-day text-emerald-600"></i>
+              <span>特定日期班次微調 / 臨時加開車</span>
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">可針對所選日期單獨開啟、關閉、修改或刪除班次。點擊下方卡片可直接載入修改。</p>
+          </div>
+          <input type="date" v-model="rideDate" @change="onDateChanged" class="border border-slate-300 rounded-lg px-2 py-1 text-xs outline-none font-semibold">
+        </div>
+
+        <div class="border rounded-xl p-3.5 space-y-2 transition" :class="editingDailyTime ? 'bg-amber-50/60 border-amber-300 ring-2 ring-amber-100' : 'bg-emerald-50/60 border-emerald-200'">
+          <div class="flex justify-between items-center">
+            <span class="text-xs font-bold" :class="editingDailyTime ? 'text-amber-900' : 'text-emerald-900'">
+              <i :class="editingDailyTime ? 'fa-solid fa-pen-to-square text-amber-600' : 'fa-solid fa-plus text-emerald-600'"></i>
+              {{ editingDailyTime ? `正在修改 ${rideDate} 的 [${editingDailyTime}] 班次設定：` : `加開班次至 ${rideDate}：` }}
+            </span>
+            <button v-if="editingDailyTime" @click="cancelDailyEdit" class="text-xs text-slate-500 hover:text-rose-600 flex items-center space-x-1">
+              <i class="fa-solid fa-xmark"></i>
+              <span>取消修改</span>
+            </button>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-3">
+            <div class="flex items-center space-x-1">
+              <span class="text-xs text-slate-600">時段：</span>
+              <input type="text" v-model="dailyAddSlotTime" :disabled="!!editingDailyTime" placeholder="時段 如 19:30" class="border border-slate-300 rounded-lg px-2 py-1 text-xs w-24 bg-white outline-none font-bold disabled:bg-slate-100 disabled:text-slate-500">
+            </div>
+
+            <div class="flex items-center space-x-1">
+              <span class="text-xs text-slate-600">上限：</span>
+              <input type="number" v-model="dailyAddCapacity" min="1" max="50" class="border border-slate-300 rounded-lg px-2 py-1 text-xs w-16 bg-white outline-none font-bold">
+              <span class="text-xs text-slate-500">人</span>
+            </div>
+
+            <div class="flex items-center space-x-1">
+              <span class="text-xs text-slate-600">截止基準：</span>
+              <select v-model="dailyAddCutoffDay" class="border border-slate-300 rounded-lg px-2 py-1 text-xs bg-white outline-none font-medium">
+                <option value="PREV">搭乘前一日</option>
+                <option value="SAME">搭乘當日</option>
+              </select>
+            </div>
+
+            <div class="flex items-center space-x-1">
+              <span class="text-xs text-slate-600">截止時間：</span>
+              <input type="text" v-model="dailyAddCutoffTime" placeholder="如 15:00 或 06:00" class="border border-slate-300 rounded-lg px-2 py-1 text-xs w-28 bg-white outline-none font-bold">
+            </div>
+
+            <button @click="handleDailyAddSlot" class="text-white text-xs px-3.5 py-1.5 rounded-lg font-bold transition shadow-sm flex items-center space-x-1" :class="editingDailyTime ? 'bg-amber-600 hover:bg-amber-700' : 'bg-emerald-600 hover:bg-emerald-700'">
+              <i :class="editingDailyTime ? 'fa-solid fa-check' : 'fa-solid fa-plus'"></i>
+              <span>{{ editingDailyTime ? '儲存當日修改' : '加開班次' }}</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          <div class="text-xs font-bold text-slate-600">當日班次狀態控管（點選卡片可修改上限人數與截止時間）：</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+            <div v-for="s in schedules" :key="s.schedule_id" 
+                 @click="selectDailySlotToEdit(s)"
+                 class="border rounded-xl p-3 flex justify-between items-center cursor-pointer transition" 
+                 :class="[
+                   editingDailyTime === s.time_slot ? 'border-amber-500 ring-2 ring-amber-200 bg-amber-50/30' : '',
+                   s.status === 'CLOSED' ? 'bg-slate-100 opacity-60 border-slate-300' : 'bg-white border-slate-200 hover:border-emerald-300 shadow-sm'
+                 ]">
+              <div>
+                <div class="flex items-center space-x-1.5">
+                  <span class="font-bold text-sm text-slate-800">{{ s.time_slot }}</span>
+                  <span class="text-[10px] px-1.5 py-0.5 rounded font-bold" :class="s.status === 'CLOSED' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'">
+                    {{ s.status === 'CLOSED' ? '停駛' : '開放中' }}
+                  </span>
+                  <span v-if="editingDailyTime === s.time_slot" class="text-[10px] bg-amber-600 text-white px-1.5 py-0.5 rounded font-bold">修改中</span>
+                </div>
+                <div class="text-xs text-slate-500 mt-0.5">預約：{{ s.current_booked }} / {{ s.max_capacity }} 人</div>
+                <div class="text-[11px] text-slate-500 mt-0.5">截止：{{ s.cutoff_day === 'PREV' ? '前一日' : '當日' }} {{ formatTimeStr(s.cutoff_time) }}</div>
+              </div>
+              
+              <div class="flex items-center space-x-1.5">
+                <button type="button" @click.stop.prevent="toggleSlotStatus(s)" class="text-xs px-2 py-1 rounded-lg font-bold transition border" :class="s.status === 'CLOSED' ? 'bg-white text-emerald-700 border-emerald-300' : 'bg-rose-50 text-rose-600 border-rose-200'">
+                  {{ s.status === 'CLOSED' ? '恢復' : '停駛' }}
+                </button>
+                <button type="button" @click.stop.prevent="handleDeleteDailySlot(s)" class="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-2 rounded-lg transition" title="刪除此班次">
+                  <i class="fa-regular fa-trash-can text-sm"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 區塊 3：多帳號權限維護與密碼管控 -->
+      <section class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+        <div class="flex justify-between items-center border-b pb-3">
+          <div>
+            <h2 class="font-bold text-slate-800 text-base flex items-center space-x-2">
+              <i class="fa-solid fa-users-gear text-emerald-600"></i>
+              <span>系統帳號與權限管控中心</span>
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">可維護多位管理員與駕駛帳號密碼，並可隨時建立或修改。</p>
+          </div>
+          <button @click="loadUsers" class="text-xs text-slate-400 hover:text-emerald-600">
+            <i class="fa-solid fa-rotate-right mr-1"></i>重新整理帳號
+          </button>
+        </div>
+
+        <!-- 新增帳號區域 -->
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
+          <span class="text-xs font-bold text-slate-700 flex items-center space-x-1">
+            <i class="fa-solid fa-user-plus text-emerald-600"></i>
+            <span>新增管理員 / 駕駛帳號：</span>
+          </span>
+          <div class="grid grid-cols-1 sm:grid-cols-4 gap-2 pt-1">
+            <input type="text" v-model="newUserName" placeholder="登入帳號 (如 driver_lin)" class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs bg-white outline-none font-mono">
+            <input type="password" v-model="newUserPassword" placeholder="設定密碼" class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs bg-white outline-none font-mono">
+            <input type="text" v-model="newUserRealName" placeholder="使用者姓名 (如 林司機)" class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs bg-white outline-none">
+            <div class="flex space-x-1.5">
+              <select v-model="newUserRole" class="border border-slate-300 rounded-lg px-2 py-1.5 text-xs bg-white outline-none flex-1 font-semibold">
+                <option value="driver">駕駛</option>
+                <option value="admin">管理員</option>
+              </select>
+              <button @click="handleCreateUser" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3.5 py-1.5 rounded-lg font-bold transition whitespace-nowrap">
+                建立
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 帳號清單列表 -->
+        <div class="border border-slate-200 rounded-xl overflow-hidden">
+          <table class="w-full text-xs text-left">
+            <thead class="bg-slate-50 text-slate-500 border-b">
+              <tr>
+                <th class="py-2.5 px-4">帳號</th>
+                <th class="py-2.5 px-4">姓名</th>
+                <th class="py-2.5 px-4">身分權限</th>
+                <th class="py-2.5 px-4">重設密碼</th>
+                <th class="py-2.5 px-4 text-center">操作</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr v-for="u in usersList" :key="u.id" class="hover:bg-slate-50/80">
+                <td class="py-2.5 px-4 font-mono font-bold text-slate-700">{{ u.username }}</td>
+                <td class="py-2.5 px-4 text-slate-800 font-medium">{{ u.real_name }}</td>
+                <td class="py-2.5 px-4">
+                  <span class="text-[10px] px-2 py-0.5 rounded font-bold" :class="u.role === 'admin' ? 'bg-purple-100 text-purple-800 border border-purple-200' : 'bg-blue-100 text-blue-800 border border-blue-200'">
+                    {{ u.role === 'admin' ? '系統管理員' : '車輛駕駛' }}
+                  </span>
+                </td>
+                <td class="py-2.5 px-4">
+                  <div class="flex items-center space-x-1.5">
+                    <input type="password" v-model="u._newPassword" placeholder="輸入新密碼" class="border border-slate-200 rounded px-2 py-1 text-xs w-28 bg-white outline-none font-mono">
+                    <button @click="handleUpdatePassword(u)" class="text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded transition font-bold">
+                      更新
+                    </button>
+                  </div>
+                </td>
+                <td class="py-2.5 px-4 text-center">
+                  <button @click="handleDeleteUser(u)" class="text-rose-500 hover:text-rose-700 p-1 transition" title="刪除帳號">
+                    <i class="fa-regular fa-trash-can"></i>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- ============================================== -->
+    <!-- 帳號密碼登入驗證彈窗 Modal (防護非預約功能) -->
+    <!-- ============================================== -->
+    <div v-if="showAuthModal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+      <div class="bg-white w-full max-w-sm rounded-2xl p-5 space-y-4 shadow-2xl">
+        <div class="text-center space-y-1">
+          <div class="w-12 h-12 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center mx-auto text-xl shadow-inner">
+            <i class="fa-solid fa-shield-halved"></i>
+          </div>
+          <h3 class="font-bold text-slate-800 text-base">帳號安全驗證</h3>
+          <p class="text-xs text-slate-500">
+            訪問【{{ pendingTab === 'admin' ? '名冊' : '時段維護' }}】功能需要身分驗證。<br>
+            <span class="text-[11px] text-emerald-700">
+              {{ pendingTab === 'admin' ? '可輸入駕駛或管理員帳號密碼' : '請輸入管理員帳號密碼' }}
+            </span>
+          </p>
+        </div>
+
+        <div class="space-y-2.5">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">使用者帳號</label>
+            <input type="text" v-model="loginUsername" @keyup.enter="submitAuth" placeholder="請輸入帳號" 
+                   class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50 focus:bg-white">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">登入密碼</label>
+            <input type="password" v-model="loginPassword" @keyup.enter="submitAuth" placeholder="請輸入密碼" 
+                   class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50 focus:bg-white">
+          </div>
+          <p v-if="authErrorMsg" class="text-rose-500 text-[11px] text-center font-bold">{{ authErrorMsg }}</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 pt-1">
+          <button @click="cancelAuth" class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs py-2.5 rounded-xl font-bold transition">
+            取消
+          </button>
+          <button @click="submitAuth" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs py-2.5 rounded-xl font-bold transition shadow-sm">
+            登入驗證
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const { createApp, ref, computed, onMounted, watch } = Vue;
+
+    createApp({
+      setup() {
+        const currentTab = ref('booking');
+        const alertMsg = ref('');
+        const alertType = ref('success');
+        
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const rideDate = ref(tomorrow.toISOString().split('T')[0]);
+        const dateOffset = ref(1);
+
+        // 登入者身分 (從 sessionStorage 讀取)
+        const currentUser = ref(JSON.parse(sessionStorage.getItem('shuttle_current_user') || 'null'));
+        const showAuthModal = ref(false);
+        const pendingTab = ref('');
+        const loginUsername = ref('');
+        const loginPassword = ref('');
+        const authErrorMsg = ref('');
+
+        // 帳號管理清單與新增欄位
+        const usersList = ref([]);
+        const newUserName = ref('');
+        const newUserPassword = ref('');
+        const newUserRealName = ref('');
+        const newUserRole = ref('driver');
+
+        // 乘車人員輸入欄位
+        const inputDept = ref('');
+        const inputEmpNo = ref('');
+        const inputName = ref('');
+        const currentEmp = ref(null);
+        const isRemembered = ref(false);
+
+        const schedules = ref([]);
+        const passengers = ref([]);
+
+        const showMyBookingsModal = ref(false);
+        const myBookings = ref([]);
+
+        // 時段維護狀態
+        const defaultSlots = ref([]);
+        const newSlotTime = ref('');
+        const newSlotCapacity = ref(8);
+        const newSlotCutoffDay = ref('PREV');
+        const newSlotCutoffTime = ref('21:00');
+        const editingSlotTime = ref(null);
+
+        // 特定日期班次維護狀態
+        const dailyAddSlotTime = ref('');
+        const dailyAddCapacity = ref(8);
+        const dailyAddCutoffDay = ref('SAME');
+        const dailyAddCutoffTime = ref('15:00');
+        const editingDailyTime = ref(null);
+
+        const showAlert = (msg, type = 'success') => {
+          alertMsg.value = msg;
+          alertType.value = type;
+          setTimeout(() => { alertMsg.value = ''; }, 4500);
+        };
+
+        // 權限分頁切換
+        const switchTab = (tab) => {
+          if (tab === 'booking') {
+            currentTab.value = 'booking';
+            return;
+          }
+
+          if (tab === 'admin') {
+            if (currentUser.value) {
+              currentTab.value = 'admin';
+              loadPassengers();
+            } else {
+              pendingTab.value = 'admin';
+              loginUsername.value = '';
+              loginPassword.value = '';
+              authErrorMsg.value = '';
+              showAuthModal.value = true;
+            }
+          } else if (tab === 'slot_mgmt') {
+            if (currentUser.value && currentUser.value.role === 'admin') {
+              currentTab.value = 'slot_mgmt';
+              loadDefaultSlots();
+              loadSchedules();
+              loadUsers();
+            } else {
+              pendingTab.value = 'slot_mgmt';
+              loginUsername.value = '';
+              loginPassword.value = '';
+              authErrorMsg.value = '';
+              showAuthModal.value = true;
+            }
+          }
+        };
+
+        // 登入驗證
+        const submitAuth = async () => {
+          if (!loginUsername.value.trim() || !loginPassword.value.trim()) {
+            authErrorMsg.value = '請輸入完整帳號與密碼！';
+            return;
+          }
+
+          const targetRole = pendingTab.value === 'slot_mgmt' ? 'admin' : 'driver';
+
+          try {
+            const res = await fetch('/api/auth/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                target: targetRole,
+                username: loginUsername.value.trim(),
+                password: loginPassword.value.trim()
+              })
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+              authErrorMsg.value = data.detail || '帳號或密碼驗證失敗！';
+            } else {
+              currentUser.value = data;
+              sessionStorage.setItem('shuttle_current_user', JSON.stringify(data));
+              showAuthModal.value = false;
+              currentTab.value = pendingTab.value;
+              showAlert(`登入成功！歡迎 ${data.real_name} (${data.role === 'admin' ? '管理員' : '駕駛'})`, 'success');
+              if (currentTab.value === 'admin') loadPassengers();
+              if (currentTab.value === 'slot_mgmt') {
+                loadDefaultSlots();
+                loadSchedules();
+                loadUsers();
+              }
+            }
+          } catch (e) {
+            authErrorMsg.value = '伺服器連線異常，請稍後重試';
+          }
+        };
+
+        const cancelAuth = () => {
+          showAuthModal.value = false;
+          loginUsername.value = '';
+          loginPassword.value = '';
+          authErrorMsg.value = '';
+          pendingTab.value = '';
+        };
+
+        const handleLogout = () => {
+          currentUser.value = null;
+          sessionStorage.removeItem('shuttle_current_user');
+          currentTab.value = 'booking';
+          showAlert('已登出管理帳號');
+        };
+
+        // 帳號管理函式
+        const loadUsers = async () => {
+          try {
+            const res = await fetch('/api/admin/users');
+            const data = await res.json();
+            usersList.value = (data.users || []).map(u => ({ ...u, _newPassword: '' }));
+          } catch (e) {
+            console.error('載入帳號清單失敗', e);
+          }
+        };
+
+        const handleCreateUser = async () => {
+          if (!newUserName.value.trim() || !newUserPassword.value.trim() || !newUserRealName.value.trim()) {
+            showAlert('請填寫完整帳號、密碼與使用者姓名！', 'error');
+            return;
+          }
+
+          try {
+            const res = await fetch('/api/admin/users', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                username: newUserName.value.trim(),
+                password: newUserPassword.value.trim(),
+                real_name: newUserRealName.value.trim(),
+                role: newUserRole.value
+              })
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+              showAlert(data.detail || '建立帳號失敗', 'error');
+            } else {
+              showAlert(data.message, 'success');
+              newUserName.value = '';
+              newUserPassword.value = '';
+              newUserRealName.value = '';
+              await loadUsers();
+            }
+          } catch (e) {
+            showAlert('建立帳號失敗', 'error');
+          }
+        };
+
+        const handleUpdatePassword = async (u) => {
+          if (!u._newPassword || !u._newPassword.trim()) {
+            showAlert('請先在輸入框填寫新密碼！', 'error');
+            return;
+          }
+
+          try {
+            const res = await fetch('/api/admin/users', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id: u.id,
+                password: u._newPassword.trim()
+              })
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+              showAlert(data.detail || '密碼更新失敗', 'error');
+            } else {
+              showAlert(`帳號 [${u.username}] 密碼已更新成功！`, 'success');
+              u._newPassword = '';
+            }
+          } catch (e) {
+            showAlert('密碼更新失敗', 'error');
+          }
+        };
+
+        const handleDeleteUser = async (u) => {
+          if (currentUser.value && currentUser.value.username === u.username) {
+            showAlert('不可刪除目前正在登入使用的自己帳號！', 'error');
+            return;
+          }
+
+          const ok = confirm(`確定要刪除帳號 [${u.username}] (${u.real_name}) 嗎？`);
+          if (!ok) return;
+
+          try {
+            const res = await fetch(`/api/admin/users/${u.id}?current_username=${encodeURIComponent(currentUser.value ? currentUser.value.username : '')}`, {
+              method: 'DELETE'
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+              showAlert(data.detail || '刪除失敗', 'error');
+            } else {
+              showAlert(data.message, 'success');
+              await loadUsers();
+            }
+          } catch (e) {
+            showAlert('刪除帳號失敗', 'error');
+          }
+        };
+
+        const getWeekday = (dateStr) => {
+          if (!dateStr) return '';
+          const parts = dateStr.replace(/\//g, '-').split('-');
+          const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+          const days = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+          return days[d.getDay()];
+        };
+
+        const formatTimeStr = (t) => {
+          if (!t) return '21:00';
+          let str = t.toString().trim();
+          if (str.includes(':')) {
+            const [h, m] = str.split(':');
+            return `${h.padStart(2, '0')}:${(m || '00').padStart(2, '0')}`;
+          }
+          if (str.length === 4) return `${str.substring(0, 2)}:${str.substring(2, 4)}`;
+          return str;
+        };
+
+        const setDateOffset = (offset) => {
+          dateOffset.value = offset;
+          const d = new Date();
+          d.setDate(d.getDate() + offset);
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          rideDate.value = `${y}-${m}-${day}`;
+          loadSchedules();
+          if (currentTab.value === 'admin') loadPassengers();
+        };
+
+        const onDateChanged = () => {
+          cancelDailyEdit();
+          loadSchedules();
+          if (currentTab.value === 'admin') loadPassengers();
+        };
+
+        const autoSuggestCutoff = () => {
+          if (editingSlotTime.value) return;
+          const t = newSlotTime.value.trim();
+          if (t.includes(':')) {
+            const h = parseInt(t.split(':')[0], 10);
+            if (!isNaN(h)) {
+              if (h < 12) {
+                newSlotCutoffDay.value = 'PREV';
+                newSlotCutoffTime.value = '21:00';
+              } else {
+                newSlotCutoffDay.value = 'SAME';
+                newSlotCutoffTime.value = '15:00';
+              }
+            }
+          }
+        };
+
+        const selectSlotToEdit = (slot) => {
+          editingSlotTime.value = slot.time_slot;
+          newSlotTime.value = slot.time_slot;
+          newSlotCapacity.value = slot.default_capacity;
+          newSlotCutoffDay.value = slot.cutoff_day || 'PREV';
+          newSlotCutoffTime.value = formatTimeStr(slot.cutoff_time);
+          showAlert(`已載入 [${slot.time_slot}] 班次資訊，可直接修改上方數值！`, 'success');
+        };
+
+        const cancelEditSlot = () => {
+          editingSlotTime.value = null;
+          newSlotTime.value = '';
+          newSlotCapacity.value = 8;
+          newSlotCutoffDay.value = 'PREV';
+          newSlotCutoffTime.value = '21:00';
+        };
+
+        const selectDailySlotToEdit = (slot) => {
+          editingDailyTime.value = slot.time_slot;
+          dailyAddSlotTime.value = slot.time_slot;
+          dailyAddCapacity.value = slot.max_capacity;
+          dailyAddCutoffDay.value = slot.cutoff_day || 'SAME';
+          dailyAddCutoffTime.value = formatTimeStr(slot.cutoff_time);
+          showAlert(`已載入 ${rideDate.value} 的 [${slot.time_slot}] 班次，可修改人數與截止時間！`, 'success');
+        };
+
+        const cancelDailyEdit = () => {
+          editingDailyTime.value = null;
+          dailyAddSlotTime.value = '';
+          dailyAddCapacity.value = 8;
+          dailyAddCutoffDay.value = 'SAME';
+          dailyAddCutoffTime.value = '15:00';
+        };
+
+        const handleDeleteDailySlot = async (slot) => {
+          let confirmText = `確定要從 ${rideDate.value} 刪除 [${slot.time_slot}] 班次嗎？`;
+          if (slot.current_booked > 0) {
+            confirmText = `⚠️ 警告：該班次目前已有 ${slot.current_booked} 人預約！\n確認刪除將會【同步取消這些同仁的預約記錄】並移除該班次。\n\n確定仍要刪除嗎？`;
+          }
+
+          const ok = window.confirm(confirmText);
+          if (!ok) return;
+
+          try {
+            const res = await fetch(`/api/admin/daily-slots/${slot.schedule_id}`, { 
+              method: 'DELETE' 
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              showAlert(data.detail || '刪除失敗', 'error');
+            } else {
+              showAlert(data.message, 'success');
+              if (editingDailyTime.value === slot.time_slot) {
+                cancelDailyEdit();
+              }
+              await loadSchedules();
+            }
+          } catch (e) {
+            showAlert('連線異常，刪除失敗', 'error');
+          }
+        };
+
+        const confirmPersonProfile = () => {
+          const dept = inputDept.value.trim();
+          const name = inputName.value.trim();
+          const empNo = inputEmpNo.value.trim();
+
+          if (!dept) {
+            showAlert('請填寫部門名稱！', 'error');
+            return null;
+          }
+          if (!name) {
+            showAlert('請填寫乘車人姓名！', 'error');
+            return null;
+          }
+
+          const person = {
+            dept_name: dept,
+            emp_no: empNo ? empNo : ('VISITOR_' + name),
+            emp_name: name
+          };
+
+          currentEmp.value = person;
+          isRemembered.value = true;
+          localStorage.setItem('shuttle_emp_profile', JSON.stringify(person));
+          showAlert(`已設定乘車人：${person.emp_name} (${person.dept_name})`);
+          return person;
+        };
+
+        const resetRememberedEmp = () => {
+          isRemembered.value = false;
+          currentEmp.value = null;
+          inputDept.value = '';
+          inputEmpNo.value = '';
+          inputName.value = '';
+          localStorage.removeItem('shuttle_emp_profile');
+        };
+
+        const checkRememberedEmp = () => {
+          const saved = localStorage.getItem('shuttle_emp_profile');
+          if (saved) {
+            try {
+              currentEmp.value = JSON.parse(saved);
+              isRemembered.value = true;
+            } catch (e) {
+              localStorage.removeItem('shuttle_emp_profile');
+            }
+          }
+        };
+
+        const loadSchedules = async () => {
+          try {
+            const res = await fetch(`/api/schedules?ride_date=${rideDate.value}`);
+            const data = await res.json();
+            schedules.value = data.data || [];
+          } catch (e) {
+            showAlert('載入班次失敗', 'error');
+          }
+        };
+
+        const morningSlots = computed(() => schedules.value.filter(s => parseInt(s.time_slot) < 12));
+        const eveningSlots = computed(() => schedules.value.filter(s => parseInt(s.time_slot) >= 12));
+
+        const isExpired = (slot) => {
+          const now = new Date();
+          const parts = rideDate.value.replace(/\//g, '-').split('-');
+          let year = parseInt(parts[0], 10);
+          let month = parseInt(parts[1], 10) - 1;
+          let day = parseInt(parts[2], 10);
+
+          const timeFormatted = formatTimeStr(slot.cutoff_time || '21:00');
+          const [cHours, cMins] = timeFormatted.split(':').map(Number);
+
+          const deadline = new Date(year, month, day, cHours || 0, cMins || 0, 0, 0);
+          if (slot.cutoff_day === 'PREV') {
+            deadline.setDate(deadline.getDate() - 1);
+          }
+
+          return now.getTime() > deadline.getTime();
+        };
+
+        const canBook = (slot) => {
+          return slot.status === 'OPEN' && slot.remaining_seats > 0 && !isExpired(slot);
+        };
+
+        const getBtnText = (slot) => {
+          if (slot.status === 'CLOSED') return '停駛';
+          if (isExpired(slot)) return '已截止';
+          if (slot.remaining_seats <= 0) return '已額滿';
+          return '立即預約';
+        };
+
+        const getSlotCardClass = (slot) => {
+          if (slot.status === 'CLOSED') return 'bg-slate-100 border-slate-200 opacity-50 cursor-not-allowed';
+          if (isExpired(slot)) return 'bg-slate-50 border-slate-200 opacity-60';
+          if (slot.remaining_seats <= 0) return 'bg-rose-50/40 border-rose-200';
+          return 'bg-white border-slate-200 hover:border-emerald-400 shadow-sm';
+        };
+
+        const handleBooking = async (slot) => {
+          let emp = currentEmp.value;
+          if (!emp) {
+            emp = confirmPersonProfile();
+            if (!emp) return;
+          }
+
+          try {
+            const res = await fetch('/api/bookings', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                emp_no: emp.emp_no,
+                emp_name: emp.emp_name,
+                dept_name: emp.dept_name,
+                ride_date: rideDate.value,
+                time_slot: slot.time_slot
+              })
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+              showAlert(data.detail || '預約失敗', 'error');
+            } else {
+              showAlert(`預約成功！[${slot.time_slot}] 乘車人：${emp.emp_name}`);
+              await loadSchedules();
+            }
+          } catch (e) {
+            showAlert('連線伺服器異常，請確認網路', 'error');
+          }
+        };
+
+        const loadPassengers = async () => {
+          try {
+            const res = await fetch(`/api/admin/passengers?ride_date=${rideDate.value}`);
+            const data = await res.json();
+            passengers.value = data.passengers || [];
+          } catch (e) {
+            console.error('名冊載入異常', e);
+          }
+        };
+
+        const openMyBookingsModal = async () => {
+          if (!currentEmp.value) {
+            showAlert('請先填寫乘車人身分', 'error');
+            return;
+          }
+          try {
+            const res = await fetch(`/api/my-bookings?emp_no=${encodeURIComponent(currentEmp.value.emp_no)}`);
+            const data = await res.json();
+            myBookings.value = data.bookings || [];
+            showMyBookingsModal.value = true;
+          } catch (e) {
+            showAlert('讀取個人預約失敗', 'error');
+          }
+        };
+
+        const groupedPassengers = computed(() => {
+          const map = {};
+          passengers.value.forEach(p => {
+            if (!map[p.time_slot]) map[p.time_slot] = [];
+            map[p.time_slot].push(p);
+          });
+          return map;
+        });
+
+        const handleCancelBooking = async (booking) => {
+          const ok = confirm(`確定要取消 ${booking.ride_date} ${booking.time_slot} 的班次嗎？`);
+          if (!ok) return;
+
+          try {
+            const res = await fetch('/api/bookings/cancel', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                booking_id: booking.booking_id,
+                emp_no: currentEmp.value.emp_no
+              })
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+              showAlert(data.detail || '取消失敗', 'error');
+            } else {
+              showAlert('已成功取消預約！');
+              await Promise.all([openMyBookingsModal(), loadSchedules()]);
+            }
+          } catch (e) {
+            showAlert('取消操作失敗', 'error');
+          }
+        };
+
+        // 時段維護相關
+        const loadDefaultSlots = async () => {
+          try {
+            const res = await fetch('/api/admin/default-slots');
+            const data = await res.json();
+            defaultSlots.value = data.slots || [];
+          } catch (e) {
+            console.error(e);
+          }
+        };
+
+        const handleAddDefaultSlot = async () => {
+          if (!newSlotTime.value) {
+            showAlert('請填寫發車時段 (例如 06:45)', 'error');
+            return;
+          }
+          if (!newSlotCutoffTime.value) {
+            showAlert('請填寫截止時間 (例如 06:00)', 'error');
+            return;
+          }
+          const formattedCutoff = formatTimeStr(newSlotCutoffTime.value);
+          try {
+            const res = await fetch('/api/admin/default-slots', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                time_slot: newSlotTime.value.trim(),
+                default_capacity: parseInt(newSlotCapacity.value) || 8,
+                cutoff_day: newSlotCutoffDay.value,
+                cutoff_time: formattedCutoff,
+                is_active: true
+              })
+            });
+            const data = await res.json();
+            showAlert(data.message);
+            cancelEditSlot();
+            await loadDefaultSlots();
+            await loadSchedules();
+          } catch (e) {
+            showAlert('儲存時段失敗', 'error');
+          }
+        };
+
+        const handleDeleteDefaultSlot = async (slot) => {
+          if (!confirm(`確定要刪除標準時段 ${slot.time_slot} 嗎？`)) return;
+          try {
+            const res = await fetch(`/api/admin/default-slots/${slot.slot_id}`, { method: 'DELETE' });
+            const data = await res.json();
+            showAlert(data.message);
+            if (editingSlotTime.value === slot.time_slot) {
+              cancelEditSlot();
+            }
+            loadDefaultSlots();
+          } catch (e) {
+            showAlert('刪除失敗', 'error');
+          }
+        };
+
+        const handleDailyAddSlot = async () => {
+          if (!dailyAddSlotTime.value) {
+            showAlert('請輸入時段', 'error');
+            return;
+          }
+          const formattedCutoff = formatTimeStr(dailyAddCutoffTime.value);
+          try {
+            const res = await fetch('/api/admin/daily-slots/add', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                ride_date: rideDate.value,
+                time_slot: dailyAddSlotTime.value.trim(),
+                max_capacity: parseInt(dailyAddCapacity.value) || 8,
+                cutoff_day: dailyAddCutoffDay.value,
+                cutoff_time: formattedCutoff
+              })
+            });
+            const data = await res.json();
+            showAlert(data.message);
+            cancelDailyEdit();
+            loadSchedules();
+          } catch (e) {
+            showAlert('操作失敗', 'error');
+          }
+        };
+
+        const toggleSlotStatus = async (slot) => {
+          const nextStatus = slot.status === 'OPEN' ? 'CLOSED' : 'OPEN';
+          try {
+            const res = await fetch('/api/admin/daily-slots/status', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                schedule_id: slot.schedule_id,
+                status: nextStatus
+              })
+            });
+            const data = await res.json();
+            showAlert(data.message);
+            loadSchedules();
+          } catch (e) {
+            showAlert('切換狀態失敗', 'error');
+          }
+        };
+
+        onMounted(() => {
+          checkRememberedEmp();
+          loadSchedules();
+        });
+
+        return {
+          currentTab, alertMsg, alertType, rideDate, dateOffset,
+          currentUser, showAuthModal, pendingTab, loginUsername, loginPassword, authErrorMsg,
+          usersList, newUserName, newUserPassword, newUserRealName, newUserRole,
+          inputDept, inputEmpNo, inputName, currentEmp, isRemembered,
+          schedules, morningSlots, eveningSlots, passengers, groupedPassengers,
+          showMyBookingsModal, myBookings,
+          defaultSlots, newSlotTime, newSlotCapacity, newSlotCutoffDay, newSlotCutoffTime, editingSlotTime,
+          dailyAddSlotTime, dailyAddCapacity, dailyAddCutoffDay, dailyAddCutoffTime, editingDailyTime,
+          switchTab, submitAuth, cancelAuth, handleLogout,
+          loadUsers, handleCreateUser, handleUpdatePassword, handleDeleteUser,
+          getWeekday, formatTimeStr, setDateOffset, onDateChanged, autoSuggestCutoff, selectSlotToEdit, cancelEditSlot,
+          selectDailySlotToEdit, cancelDailyEdit, handleDeleteDailySlot,
+          confirmPersonProfile, resetRememberedEmp,
+          loadSchedules, loadPassengers, openMyBookingsModal, canBook, getBtnText, getSlotCardClass,
+          handleBooking, handleCancelBooking,
+          loadDefaultSlots, handleAddDefaultSlot, handleDeleteDefaultSlot, handleDailyAddSlot, toggleSlotStatus
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+Plaintext
+fastapi
+uvicorn
+sqlalchemy
+pandas
+python-multipart
+openpyxl
